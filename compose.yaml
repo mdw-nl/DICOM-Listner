@@ -1,0 +1,11 @@
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+      # how to connect to the database if deployed with docker compose  from the host or service external ? 
+      # - "

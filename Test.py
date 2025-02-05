@@ -1,5 +1,4 @@
 import os
-import logging
 from pydicom import dcmread
 from pydicom.uid import ExplicitVRLittleEndian
 from pynetdicom import AE, debug_logger
@@ -9,7 +8,8 @@ from pynetdicom.presentation import StoragePresentationContexts
 debug_logger()
 
 # Configuration
-DICOM_FOLDER = "'/Users/alessioromita/Documents/image test'"  # Update with the folder containing DICOM files
+DICOM_FOLDER = "/Users/alessioromita/Documents/image test"
+# Update with the folder containing DICOM files
 AE_TITLE = "MY_SCU"  # Application Entity Title of this SCU
 SCP_AE_TITLE = "MY_SCP"  # AE Title of the SCP (listener)
 SCP_IP = "localhost"  # IP of the SCP (DICOM listener)
@@ -21,6 +21,7 @@ ae = AE(ae_title=AE_TITLE)
 # Add supported presentation contexts (all Storage SOP classes)
 for context in StoragePresentationContexts:
     ae.add_requested_context(context.abstract_syntax, ExplicitVRLittleEndian)
+
 
 def send_dicom(file_path):
     """Sends a single DICOM file to the DICOM SCP."""
@@ -46,6 +47,7 @@ def send_dicom(file_path):
     except Exception as e:
         print(f"[ERROR] Failed to send {file_path}: {e}")
 
+
 def send_all_dicoms(folder_path):
     """Send all DICOM files from a folder."""
     for root, _, files in os.walk(folder_path):
@@ -53,6 +55,7 @@ def send_all_dicoms(folder_path):
             if file.lower().endswith(".dcm"):  # Ensure it's a DICOM file
                 file_path = os.path.join(root, file)
                 send_dicom(file_path)
+
 
 if __name__ == "__main__":
     send_all_dicoms(DICOM_FOLDER)

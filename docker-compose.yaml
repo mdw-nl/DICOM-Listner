@@ -7,5 +7,16 @@ services:
       POSTGRES_DB: postgres
     ports:
       - "5432:5432"
-      # how to connect to the database if deployed with docker compose  from the host or service external ? 
-      # - "
+    networks:
+      - protrait
+  dicomsorter:
+    build: .
+    depends_on:
+      - postgres
+    ports:
+      - "104:104"
+    networks:
+      - protrait
+networks:
+  protrait:
+    driver: bridge

@@ -1,6 +1,6 @@
 import os
 import logging
-from global_variables import BASE_DIR
+from .global_variables import BASE_DIR
 from pynetdicom import AE
 
 logger = logging.getLogger(__name__)

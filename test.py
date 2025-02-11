@@ -12,7 +12,7 @@ DICOM_FOLDER = "/Users/alessioromita/Documents/image test"
 # Update with the folder containing DICOM files
 AE_TITLE = "MY_SCU"  # Application Entity Title of this SCU
 SCP_AE_TITLE = "MY_SCP"  # AE Title of the SCP (listener)
-SCP_IP = "localhost"  # IP of the SCP (DICOM listener)
+SCP_IP = "postgres"  # IP of the SCP (DICOM listener)
 SCP_PORT = 11112  # Port of the SCP
 
 # Initialize Application Entity (AE)

@@ -1,10 +1,15 @@
 FROM python:3.12-slim
 
-WORKDIR /app
-COPY . /app
+WORKDIR /dicomsorter
+
+COPY dicomsorter dicomsorter
+COPY main.py main.py
+COPY requirements.txt requirements.txt
+
+ENV PYTHONPATH "${PYTHONPATH}:/dicomsorter"
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 80
+EXPOSE 104
 
-CMD ["python", "app.py"]
+CMD ["python", "main.py"]

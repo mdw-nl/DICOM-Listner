@@ -30,7 +30,7 @@ This tool requires a PostgreSQL database to store DICOM metadata. The database c
     ```
     This will create and start the PostgreSQL container in the background.
 
-- The database will be accessible at `localhost:5432` with the default credentials:
+- The database will be accessible at `postgres:5432` with the default credentials:
     - **Username:** `postgres`
     - **Password:** `postgres`
     - **Database:** `postgres`

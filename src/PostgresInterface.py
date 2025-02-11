@@ -1,7 +1,6 @@
 import psycopg2
 from psycopg2 import sql
 
-
 class PostgresInterface:
     def __init__(self, host, database, user, password,port):
         self.host = host

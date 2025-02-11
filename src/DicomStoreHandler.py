@@ -1,14 +1,13 @@
 import os
 import logging
-from src.Global import BASE_DIR
+from global_variables import BASE_DIR
 from pynetdicom import AE
 
 logger = logging.getLogger(__name__)
 
 SCP_AE_TITLE = "MY_SCP"
 
-
-class DICOMStoreHandler:
+class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata to the database."""
 
     def __init__(self, db):

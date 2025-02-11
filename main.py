@@ -2,9 +2,9 @@ import os
 from pydicom import dcmread
 
 import logging
-from src.Database import PostgresInterface
-from src.Query import CREATE_DATABASE_QUERY
-from src.Handler import DICOMStoreHandler
+from PostgresInterface import PostgresInterface
+from query import CREATE_DATABASE_QUERY
+from DicomStoreHandler import DICOMStoreHandler
 from pynetdicom import evt, StoragePresentationContexts, debug_logger
 
 

@@ -1,3 +1,5 @@
+import logging
+
 import psycopg2
 from psycopg2 import sql
 
@@ -22,9 +24,9 @@ class PostgresInterface:
                 port=self.port
             )
             self.cursor = self.conn.cursor()
-            print("Connection established.")
+            logging.info("Connection established.")
         except Exception as e:
-            print(f"Error connecting to database: {e}")
+            logging.warning(f"Error connecting to database: {e}")
 
     def disconnect(self):
         """Close the connection to the database."""
@@ -32,17 +34,17 @@ class PostgresInterface:
             self.cursor.close()
         if self.conn:
             self.conn.close()
-        print("Connection closed.")
+        logging.info("Connection closed.")
 
     def execute_query(self, query, params=None):
         """Execute a query (e.g., INSERT, UPDATE, DELETE)."""
         try:
             self.cursor.execute(query, params)
             self.conn.commit()  # Commit changes to the database
-            print("Query executed successfully.")
+            logging.info("Query executed successfully.")
         except Exception as e:
             self.conn.rollback()  # Rollback in case of error
-            print(f"Error executing query: {e}")
+            logging.warning(f"Error executing query: {e}")
 
     def fetch_all(self, query, params=None):
         """Fetch all results from a SELECT query."""
@@ -59,7 +61,7 @@ class PostgresInterface:
             self.cursor.execute(query, params)
             return self.cursor.fetchone()
         except Exception as e:
-            print(f"Error fetching result: {e}")
+            logging.warning(f"Error fetching result: {e}")
             return None
 
     def create_table(self, table_name, columns):
@@ -100,3 +102,5 @@ class PostgresInterface:
         """
         self.cursor.execute(query, (table_name,))
         return self.cursor.fetchone()[0]
+
+

@@ -15,6 +15,9 @@ logger = logging.getLogger()
 debug_logger()
 logging.getLogger("pynetdicom").setLevel(logging.DEBUG)
 
+
+
+
 def set_up_db():
     """
 
@@ -30,7 +33,15 @@ def set_up_db():
         logger.info("Table dicom_insert does not exist. Creating....")
         db.execute_query(query=query.CREATE_DATABASE_QUERY)
         logger.info("Table created....")
+
+    if db.check_table_exists("associations"):
+        logger.info("The 'associations' table exists.")
+    else:
+        logger.info("Table associations does not exist. Creating....")
+        db.execute_query(query=query.CREATE_DATABASE_QUERY_2)
+        logger.info("Table created....")
     return db
+
 
 # Function to handle incoming DICOM images
 if __name__ == "__main__":
@@ -43,7 +54,8 @@ if __name__ == "__main__":
     dh.ae.supported_contexts = StoragePresentationContexts
 
     # Define event handlers
-    handlers = [(evt.EVT_C_STORE, dh.handle_store)]
+    handlers = [(evt.EVT_C_STORE, dh.handle_store),
+                (evt.EVT_CONN_OPEN, dh.handle_assoc_open)]
 
     print("[INFO] Starting DICOM Listener on port 104...")
     dh.ae.start_server(("0.0.0.0", 104), block=True, evt_handlers=handlers)

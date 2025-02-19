@@ -17,8 +17,7 @@ class DicomStoreHandler:
     def __init__(self, db):
         self.db = db  # Store database connection
         self.ae = AE(ae_title=SCP_AE_TITLE)
-        self.ds = None
-        self.event = None
+
 
     def handle_assoc_open(self, event):
         """Assigns a UUID to a new DICOM association and stores details."""
@@ -27,6 +26,7 @@ class DicomStoreHandler:
         ae_address = event.assoc.requestor.address
         ae_port = event.assoc.requestor.port
         event.assoc.assoc_id = assoc_id
+
 
         params = (
             assoc_id,
@@ -40,18 +40,18 @@ class DicomStoreHandler:
 
     def handle_store(self, event):
         """Receives and stores DICOM images while logging metadata to the database."""
-        self.ds = event.dataset
-        self.ds.file_meta = event.file_meta
+        ds = event.dataset
+        ds.file_meta = event.file_meta
         assoc_id = event.assoc.assoc_id
         # Extract key DICOM attributes
-        patient_id = self.ds.PatientID if "PatientID" in self.ds else "UNKNOWN"
-        study_uid = self.ds.StudyInstanceUID if "StudyInstanceUID" in self.ds else "UNKNOWN"
-        series_uid = self.ds.SeriesInstanceUID if "SeriesInstanceUID" in self.ds else "UNKNOWN"
-        modality = self.ds.Modality if "Modality" in self.ds else "UNKNOWN"
-        sop_uid = self.ds.SOPInstanceUID if "SOPInstanceUID" in self.ds else "UNKNOWN"
-        sop_class_uid = self.ds.SOPClassUID if "SOPClassUID" in self.ds else "UNKNOWN"
-        instance_number = int(self.ds.InstanceNumber) if "InstanceNumber" in self.ds else "UNKNOWN"
-        modality_type = self.ds.get("ModalityType", "UNKNOWN")  # If ModalityType exists
+        patient_id = ds.PatientID if "PatientID" in ds else "UNKNOWN"
+        study_uid = ds.StudyInstanceUID if "StudyInstanceUID" in ds else "UNKNOWN"
+        series_uid = ds.SeriesInstanceUID if "SeriesInstanceUID" in ds else "UNKNOWN"
+        modality = ds.Modality if "Modality" in ds else "UNKNOWN"
+        sop_uid = ds.SOPInstanceUID if "SOPInstanceUID" in ds else "UNKNOWN"
+        sop_class_uid = ds.SOPClassUID if "SOPClassUID" in ds else "UNKNOWN"
+        instance_number = int(ds.InstanceNumber) if "InstanceNumber" in ds else "UNKNOWN"
+        modality_type = ds.get("ModalityType", "UNKNOWN")  # If ModalityType exists
 
 
 
@@ -61,7 +61,7 @@ class DicomStoreHandler:
 
         # Save the DICOM file
         filename = os.path.join(patient_folder, f"{sop_uid}.dcm")
-        self.ds.save_as(filename, write_like_original=False)
+        ds.save_as(filename, write_like_original=False)
 
         logger.info(f"[INFO] Stored {modality} file for Patient {patient_id}: {filename}")
         params = (

@@ -2,6 +2,9 @@ import logging
 
 import psycopg2
 from psycopg2 import sql
+from .src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
+from time import sleep
+
 
 class PostgresInterface:
     def __init__(self, host, database, user, password,port):
@@ -15,18 +18,27 @@ class PostgresInterface:
 
     def connect(self):
         """Connect to the PostgreSQL database."""
-        try:
-            self.conn = psycopg2.connect(
-                host=self.host,
-                database=self.database,
-                user=self.user,
-                password=self.password,
-                port=self.port
-            )
-            self.cursor = self.conn.cursor()
-            logging.info("Connection established.")
-        except Exception as e:
-            logging.warning(f"Error connecting to database: {e}")
+        for attempt in range(NUMBER_ATTEMPTS):
+            try:
+                self.conn = psycopg2.connect(
+                    host=self.host,
+                    database=self.database,
+                    user=self.user,
+                    password=self.password,
+                    port=self.port
+                )
+                self.cursor = self.conn.cursor()
+                logging.info("Connection established.")
+                break
+            except psycopg2.OperationalError as e:
+                if attempt < NUMBER_ATTEMPTS - 1:
+                    logging.warning(f"{e}")
+                    logging.info(f"Retrying in {RETRY_DELAY_IN_SECONDS} seconds...")
+                    sleep(RETRY_DELAY_IN_SECONDS)
+                else:
+
+                    raise Exception(
+                        f"Unable to connect to the database after time.")
 
     def disconnect(self):
         """Close the connection to the database."""

@@ -5,28 +5,31 @@ from pynetdicom import AE
 import uuid
 from datetime import datetime
 from .query import INSERT_QUERY_DICOM_META, INSERT_QUERY_DICOM_ASS
+from .src.dicom_data import return_dicom_data
+from .src.global_var import SCP_AE_TITLE
 
 logger = logging.getLogger(__name__)
 
-SCP_AE_TITLE = "MY_SCP"
-
 
 class DicomStoreHandler:
-    """Handles incoming DICOM C-STORE requests and saves metadata to the database."""
+    """Handles incoming DICOM C-STORE requests and saves metadata and
+     association information to the database to the database."""
 
     def __init__(self, db):
-        self.db = db  # Store database connection
+        self.db = db
         self.ae = AE(ae_title=SCP_AE_TITLE)
 
-
     def handle_assoc_open(self, event):
-        """Assigns a UUID to a new DICOM association and stores details."""
+        """
+        Assigns a UUID to a new DICOM association and stores details.
+        :param event:
+        :return:
+        """
         assoc_id = str(uuid.uuid4())  # Generate a unique ID
         ae_title = event.assoc.requestor.ae_title
         ae_address = event.assoc.requestor.address
         ae_port = event.assoc.requestor.port
         event.assoc.assoc_id = assoc_id
-
 
         params = (
             assoc_id,
@@ -43,17 +46,8 @@ class DicomStoreHandler:
         ds = event.dataset
         ds.file_meta = event.file_meta
         assoc_id = event.assoc.assoc_id
-        # Extract key DICOM attributes
-        patient_id = ds.PatientID if "PatientID" in ds else "UNKNOWN"
-        study_uid = ds.StudyInstanceUID if "StudyInstanceUID" in ds else "UNKNOWN"
-        series_uid = ds.SeriesInstanceUID if "SeriesInstanceUID" in ds else "UNKNOWN"
-        modality = ds.Modality if "Modality" in ds else "UNKNOWN"
-        sop_uid = ds.SOPInstanceUID if "SOPInstanceUID" in ds else "UNKNOWN"
-        sop_class_uid = ds.SOPClassUID if "SOPClassUID" in ds else "UNKNOWN"
-        instance_number = int(ds.InstanceNumber) if "InstanceNumber" in ds else "UNKNOWN"
-        modality_type = ds.get("ModalityType", "UNKNOWN")  # If ModalityType exists
-
-
+        patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
+            instance_number, modality_type = return_dicom_data(ds)
 
         # Create directories for storage
         patient_folder = os.path.join(BASE_DIR, patient_id, study_uid, modality)
@@ -76,10 +70,9 @@ class DicomStoreHandler:
             modality_type,
             assoc_id
         )
-        logging.info(f"Inserting value in Meta table {params}")
+        logging.info(f"Inserting value in Meta table")
         self.db.execute_query(INSERT_QUERY_DICOM_META, params)
 
         return 0x0000
 
-#
-# Success response
+

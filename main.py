@@ -16,11 +16,9 @@ debug_logger()
 logging.getLogger("pynetdicom").setLevel(logging.DEBUG)
 
 
-
-
 def set_up_db():
     """
-
+    Establish connection to the database and check if the required tables exist of if they need to be created
     :return:
     """
     db = PostgresInterface(host="postgres", database="postgres", user="postgres", password="postgres", port=5432)

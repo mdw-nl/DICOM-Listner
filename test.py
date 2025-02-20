@@ -3,6 +3,7 @@ from pydicom import dcmread
 from pydicom.uid import ExplicitVRLittleEndian
 from pynetdicom import AE, debug_logger
 from pynetdicom.presentation import StoragePresentationContexts
+import psycopg2
 
 # Enable debug logging (optional)
 debug_logger()
@@ -56,6 +57,18 @@ def send_all_dicoms(folder_path):
                 file_path = os.path.join(root, file)
                 send_dicom(file_path)
 
-
+#def test_query(query):
+#    conn = psycopg2.connect(
+#        host="postgres", database="postgres", user="postgres", password="postgres", port=5432
+#    )
+#
+#    cursor = conn.cursor()
+#    cursor.execute(query)
+#    results = cursor.fetchall()
+#    columns = [desc[0] for desc in cursor.description]
+#
+#    # Create DataFrame
+#    #df = pd.DataFrame(results, columns=columns)
+#    conn.commit()
 if __name__ == "__main__":
     send_all_dicoms(DICOM_FOLDER)

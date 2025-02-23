@@ -2,3 +2,4 @@ pynetdicom
 psycopg2-binary
 pydicom
 pyyaml
+pika

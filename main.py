@@ -47,6 +47,8 @@ if __name__ == "__main__":
 
     database = set_up_db()
     dh = DicomStoreHandler(database)
+    dh.open_connection()
+    dh.create_queue()
     # Accept all DICOM storage types, without this we need to specify this manually
 
     dh.ae.supported_contexts = StoragePresentationContexts

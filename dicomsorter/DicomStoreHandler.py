@@ -6,9 +6,8 @@ import uuid
 from datetime import datetime
 from .query import INSERT_QUERY_DICOM_META, INSERT_QUERY_DICOM_ASS
 from .src.dicom_data import return_dicom_data
-from .src.global_var import SCP_AE_TITLE
-
-logger = logging.getLogger(__name__)
+from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, RABBITMQ_URL
+import pika
 
 
 class DicomStoreHandler:
@@ -18,6 +17,20 @@ class DicomStoreHandler:
     def __init__(self, db):
         self.db = db
         self.ae = AE(ae_title=SCP_AE_TITLE)
+        self.connection = None
+
+    def open_connection(self):
+        """Establish connection"""
+        connection = pika.BlockingConnection(pika.URLParameters(RABBITMQ_URL))
+        self.connection = connection
+
+    def close_connection(self):
+        """Close connection"""
+        self.connection.close()
+
+    def create_queue(self):
+        channel = self.connection.channel()
+        channel.queue_declare(queue=QUEUE_NAME, passive=True)
 
     def handle_assoc_open(self, event):
         """
@@ -74,5 +87,3 @@ class DicomStoreHandler:
         self.db.execute_query(INSERT_QUERY_DICOM_META, params)
 
         return 0x0000
-
-

@@ -2,7 +2,8 @@ from pydicom import dcmread
 import logging
 from pynetdicom import evt, StoragePresentationContexts, debug_logger
 from dicomsorter import PostgresInterface, DicomStoreHandler, query
-
+from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
+from time import sleep
 BASE_DIR = "dicom_storage"
 
 logging.basicConfig(
@@ -47,10 +48,18 @@ if __name__ == "__main__":
 
     database = set_up_db()
     dh = DicomStoreHandler(database)
-    dh.open_connection()
+    for attempt in range(NUMBER_ATTEMPTS):
+        logging.info(f"Trying connection {attempt}")
+        try:
+            dh.open_connection()
+        except:
+            if attempt < NUMBER_ATTEMPTS - 1:
+                logging.info(f"Retrying in {RETRY_DELAY_IN_SECONDS} seconds...")
+                sleep(RETRY_DELAY_IN_SECONDS)
+            else:
+                raise Exception(
+                    f"Unable to connect to the RabbitMq after time.")
     dh.create_queue()
-    # Accept all DICOM storage types, without this we need to specify this manually
-
     dh.ae.supported_contexts = StoragePresentationContexts
 
     # Define event handlers

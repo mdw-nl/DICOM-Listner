@@ -39,3 +39,8 @@ INSERT_QUERY_DICOM_ASS = """
         uuid, ae_title, ip_address, port, timestamp
     ) VALUES (%s, %s, %s, %s, %s)
 """
+
+UNIQUE_UID_SELECT = """
+    SELECT EXIST(SELECT study_instance_uid FROM public.dicom_insert WHERE study_instance_uid = %s;)
+    VALUES (%s);
+"""

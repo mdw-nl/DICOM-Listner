@@ -11,7 +11,6 @@ from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, RABBITMQ_URL
 import pika
 
 
-
 class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and
      association information to the database to the database."""
@@ -27,7 +26,6 @@ class DicomStoreHandler:
         connection = pika.BlockingConnection(pika.URLParameters(RABBITMQ_URL))
         self.connection = connection
 
-
     def close_connection(self):
         """Close connection"""
 
@@ -39,6 +37,7 @@ class DicomStoreHandler:
 
     def send_to_queue(self, message):
         # Convert Python dict to JSON string
+
         self.connection.channel().basic_publish(
             exchange='',
             routing_key=QUEUE_NAME,
@@ -62,6 +61,8 @@ class DicomStoreHandler:
                 raise
         logging.info(f"Insertion complete")
 
+
+
     def handle_assoc_open(self, event):
         """
         Assigns a UUID to a new DICOM association and stores details.
@@ -73,6 +74,7 @@ class DicomStoreHandler:
         ae_address = event.assoc.requestor.address
         ae_port = event.assoc.requestor.port
         event.assoc.assoc_id = assoc_id
+        event.assoc.list_uid = set()
 
         params = (
             assoc_id,
@@ -83,6 +85,10 @@ class DicomStoreHandler:
         )
         logging.info(f"Inserting value in Assoc table {params}")
         self.db.execute_query(INSERT_QUERY_DICOM_ASS, params)
+
+    def handle_assoc_close(self, event):
+        for uid in event.assoc.list_uid:
+            self.send_to_queue(uid)
 
     def handle_store(self, event):
         """Receives and stores DICOM images while logging metadata to the database."""
@@ -112,19 +118,11 @@ class DicomStoreHandler:
         )
         logging.info(f"Checking if {study_uid} in database before inserting into the queue and table")
 
-        result = self.db.fetch_all(UNIQUE_UID_SELECT, params=study_uid)
-        if not result:
-            try:
-                self.send_to_queue(study_uid)
-                logging.info(f"Inserting {study_uid} in the queue")
-            except:
-                logging.warning("Inserting in the queue failed.")
-                raise
-        logging.info(f"Insertion complete")
-        self.check_uid_db(study_uid)
+        event.assoc.list_uid.add(study_uid)
 
         logging.info("Inserting dicom metadata into the table")
         self.db.execute_query(INSERT_QUERY_DICOM_META, params)
         logging.info("Insert complete")
+        logging.info(f"These are study uid element {event.assoc.list_uid}")
 
         return 0x0000

@@ -16,7 +16,8 @@ def return_dicom_data(ds: Dataset):
     modality = ds.Modality if "Modality" in ds else "UNKNOWN"
     sop_uid = ds.SOPInstanceUID if "SOPInstanceUID" in ds else "UNKNOWN"
     sop_class_uid = ds.SOPClassUID if "SOPClassUID" in ds else "UNKNOWN"
-    instance_number = int(ds.InstanceNumber) if "InstanceNumber" in ds else "UNKNOWN"
+    instance_number = ds.InstanceNumber if "InstanceNumber" in ds else "UNKNOWN"
+    instance_number = int(instance_number) if instance_number is not None else "UNKNOWN"
     modality_type = ds.get("ModalityType", "UNKNOWN")
     return patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
         instance_number, modality_type

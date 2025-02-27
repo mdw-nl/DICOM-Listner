@@ -49,7 +49,7 @@ if __name__ == "__main__":
     database = set_up_db()
     dh = DicomStoreHandler(database)
     for attempt in range(NUMBER_ATTEMPTS):
-        logging.info(f"Trying connection {attempt}")
+        logging.info(f"Trying connection {attempt} for RabbitMQ")
         try:
             dh.open_connection()
         except:
@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
     # Define event handlers
     handlers = [(evt.EVT_C_STORE, dh.handle_store),
-                (evt.EVT_CONN_OPEN, dh.handle_assoc_open)]
+                (evt.EVT_CONN_OPEN, dh.handle_assoc_open), (evt.EVT_CONN_CLOSE,dh.handle_assoc_close)]
 
     print("[INFO] Starting DICOM Listener on port 104...")
     dh.ae.start_server(("0.0.0.0", 104), block=True, evt_handlers=handlers)

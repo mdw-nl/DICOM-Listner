@@ -4,7 +4,11 @@ from pydicom.uid import ExplicitVRLittleEndian
 from pynetdicom import AE, debug_logger
 from pynetdicom.presentation import StoragePresentationContexts
 import psycopg2
+import pika
+import gc
 
+import logging
+RABBITMQ_URL = "amqp://user:password@rabbitmq:5672/"
 # Enable debug logging (optional)
 debug_logger()
 
@@ -24,51 +28,69 @@ for context in StoragePresentationContexts:
     ae.add_requested_context(context.abstract_syntax, ExplicitVRLittleEndian)
 
 
-def send_dicom(file_path):
+def send_fold(folder_path):
     """Sends a single DICOM file to the DICOM SCP."""
-    try:
-        ds = dcmread(file_path)  # Load DICOM file
+    assoc = ae.associate(SCP_IP, SCP_PORT, ae_title=SCP_AE_TITLE)
+    if assoc.is_established:
 
-        # Establish association with the SCP
-        assoc = ae.associate(SCP_IP, SCP_PORT, ae_title=SCP_AE_TITLE)
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                if file.lower().endswith(".dcm"):
+                    try:
+                        file_path = os.path.join(root, file)
+                        ds = dcmread(file_path)  # Load DICOM file
 
-        if assoc.is_established:
-            print(f"[INFO] Sending: {file_path}")
-            status = assoc.send_c_store(ds)  # Send the DICOM file
+                        # Establish association with the SCP
 
-            if status:
-                print(f"[INFO] C-STORE Response: 0x{status.Status:04X}")
-            else:
-                print("[ERROR] Failed to send DICOM file.")
+                        print(f"[INFO] Sending: {file_path}")
+                        status = assoc.send_c_store(ds)  # Send the DICOM file
 
-            assoc.release()  # Release the association
-        else:
-            print("[ERROR] Association with SCP failed.")
+                        if status:
+                            print(f"[INFO] C-STORE Response: 0x{status.Status:04X}")
+                        else:
+                            print("[ERROR] Failed to send DICOM file.")
 
-    except Exception as e:
-        print(f"[ERROR] Failed to send {file_path}: {e}")
+                    except Exception as e:
+                        print(f"[ERROR] Failed to send : {e}")
+
+        assoc.release()
+        gc.collect()
+    else:
+        print("[ERROR] Association with SCP failed.")
 
 
 def send_all_dicoms(folder_path):
     """Send all DICOM files from a folder."""
-    for root, _, files in os.walk(folder_path):
-        for file in files:
-            if file.lower().endswith(".dcm"):  # Ensure it's a DICOM file
-                file_path = os.path.join(root, file)
-                send_dicom(file_path)
+    for folder in os.listdir(folder_path):
+        if folder !='.DS_Store':
+            folder_c = folder_path+"/"+folder+"/"
+            send_fold(folder_c)
 
-#def test_query(query):
-#    conn = psycopg2.connect(
-#        host="postgres", database="postgres", user="postgres", password="postgres", port=5432
-#    )
-#
-#    cursor = conn.cursor()
-#    cursor.execute(query)
-#    results = cursor.fetchall()
-#    columns = [desc[0] for desc in cursor.description]
-#
-#    # Create DataFrame
-#    #df = pd.DataFrame(results, columns=columns)
-#    conn.commit()
+
+
+
+
+def callback(ch, method, properties, body):
+    print(f"Received: {body.decode()}")
+
+
 if __name__ == "__main__":
-    send_all_dicoms(DICOM_FOLDER)
+
+    #send_all_dicoms(DICOM_FOLDER)
+
+    QUEUE_NAME = "DICOM_Processor"
+
+    # Connect to RabbitMQ
+    connection = pika.BlockingConnection(pika.URLParameters("amqp://user:password@localhost:5672/"))
+    channel = connection.channel()
+
+    # Get queue information
+    queue = channel.queue_declare(queue=QUEUE_NAME, passive=True)
+    message_count = queue.method.message_count
+    print(f"Total messages in queue: {message_count}")
+    channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback, auto_ack=True)
+    print("Waiting for messages. To exit, press CTRL+C")
+    channel.start_consuming()
+
+    # Close connection
+    connection.close()

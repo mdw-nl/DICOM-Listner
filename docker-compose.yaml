@@ -17,6 +17,8 @@ services:
       - "104:104"
     networks:
       - protrait
+    volumes:
+      - /Users/alessioromita/Documents/data_test_docker:/dicomsorter/data
 
   rabbitmq:
     image: rabbitmq:3-management

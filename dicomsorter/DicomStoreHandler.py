@@ -61,8 +61,6 @@ class DicomStoreHandler:
                 raise
         logging.info(f"Insertion complete")
 
-
-
     def handle_assoc_open(self, event):
         """
         Assigns a UUID to a new DICOM association and stores details.
@@ -104,6 +102,7 @@ class DicomStoreHandler:
         ds.save_as(filename, write_like_original=False)
 
         logging.info(f"[INFO] Stored {modality} file for Patient {patient_id}: {filename}")
+        #filename = filename.replace("./data/", "/Users/alessioromita/Documents/data_test_docker/")
         params = (
             patient_id,
             study_uid,

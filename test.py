@@ -76,21 +76,22 @@ def callback(ch, method, properties, body):
 
 if __name__ == "__main__":
 
-    #send_all_dicoms(DICOM_FOLDER)
+    send_all_dicoms(DICOM_FOLDER)
 
     QUEUE_NAME = "DICOM_Processor"
-
-    # Connect to RabbitMQ
+#
+    ## Connect to RabbitMQ
     connection = pika.BlockingConnection(pika.URLParameters("amqp://user:password@localhost:5672/"))
     channel = connection.channel()
-
-    # Get queue information
+#
+    ## Get queue information
+    #
     queue = channel.queue_declare(queue=QUEUE_NAME, passive=True)
     message_count = queue.method.message_count
     print(f"Total messages in queue: {message_count}")
-    channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback, auto_ack=True)
-    print("Waiting for messages. To exit, press CTRL+C")
-    channel.start_consuming()
-
-    # Close connection
-    connection.close()
+    #channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback, auto_ack=True)
+    #print("Waiting for messages. To exit, press CTRL+C")
+    #channel.start_consuming()
+#
+    ## Close connection
+    #connection.close()

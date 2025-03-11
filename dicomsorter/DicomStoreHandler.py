@@ -95,7 +95,7 @@ class DicomStoreHandler:
         assoc_id = event.assoc.assoc_id
 
         patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
-            instance_number, modality_type = return_dicom_data(ds)
+            instance_number, modality_type,referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(ds)
 
         filename = create_folder(patient_id, study_uid, modality, sop_uid)
         logging.info(f"Folder structure create. Saving in {filename}")
@@ -112,6 +112,8 @@ class DicomStoreHandler:
             sop_class_uid,
             instance_number,
             filename,
+            referenced_rt_plan_uid,
+            referenced_sop_class_uid,
             modality_type,
             assoc_id
         )

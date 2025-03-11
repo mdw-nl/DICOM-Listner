@@ -22,8 +22,16 @@ def return_dicom_data(ds: Dataset):
     instance_number = ds.InstanceNumber if "InstanceNumber" in ds else "UNKNOWN"
     instance_number = "UNKNOWN" if instance_number is None or instance_number == "UNKNOWN" else int(instance_number)
     modality_type = ds.get("ModalityType", "UNKNOWN")
+    referenced_rt_plan_seq = ds.get("ReferencedRTPlanSequence", [{}])  # (300C,0002)
+    referenced_rt_plan_uid = (
+        referenced_rt_plan_seq[0].get("ReferencedSOPInstanceUID", "UNKNOWN") if referenced_rt_plan_seq else "UNKNOWN"
+    )  # (0008,1155)
+    referenced_sop_class_uid = (
+        referenced_rt_plan_seq[0].get("ReferencedSOPClassUID", "UNKNOWN") if referenced_rt_plan_seq else "UNKNOWN"
+    )  # (0008,1150)
+
     return patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
-        instance_number, modality_type
+        instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid
 
 
 def create_folder(patient_id, study_uid, modality, sop_uid):

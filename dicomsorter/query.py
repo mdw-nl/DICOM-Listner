@@ -11,6 +11,8 @@ CREATE TABLE dicom_insert (
     sop_class_uid TEXT NOT NULL,
     instance_number TEXT,
     file_path TEXT,
+    referenced_sop_class_uid TEXT,
+    referenced_rt_plan_uid TEXT,
     modality_type TEXT,
     assoc_id TEXT
 );
@@ -30,8 +32,8 @@ INSERT_QUERY_DICOM_META = """
     INSERT INTO dicom_insert (
         patient_id, study_instance_uid, series_instance_uid, modality, 
         sop_instance_uid, sop_class_uid, instance_number, 
-        file_path, modality_type,assoc_id
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        file_path,referenced_rt_plan_uid, referenced_sop_class_uid, modality_type,assoc_id
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 INSERT_QUERY_DICOM_ASS = """

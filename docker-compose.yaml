@@ -11,7 +11,7 @@ services:
     networks:
       - protrait
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-d", "db_prod"]
+      test: [ "CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
       interval: 30s
       timeout: 60s
       retries: 5
@@ -24,20 +24,29 @@ services:
         condition: service_healthy
     build: .
     container_name: dicom-sorter
+    environment:
+      - PYTHONUNBUFFERED=1
     ports:
       - "104:104"
     networks:
       - protrait
     volumes:
-      - /Users/alessioromita/Documents/data_test_docker:/dicomsorter/data
+      - ./associationdata:/dicomsorter/data
   dvh-calculator:
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    image: ghcr.io/mdw-nl/dvh_consumer:roi-combination-work
+    # image: ghcr.io/mdw-nl/dvh_consumer:roi-combination-work
+    image: dvh-calculator:latest
     container_name: dvh-calculator
+    environment:
+    - PYTHONUNBUFFERED=1
+    volumes:
+      - ./associationdata:/dicomsorter/data
+    networks:
+      - protrait
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq

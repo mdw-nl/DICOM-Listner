@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:13
+    container_name: postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -9,8 +10,9 @@ services:
       - "5432:5432"
     networks:
       - protrait
-  dicomsorter:
+  dicom-sorter:
     build: .
+    container_name: dicom-sorter
     depends_on:
       - postgres
     ports:
@@ -19,7 +21,13 @@ services:
       - protrait
     volumes:
       - /Users/alessioromita/Documents/data_test_docker:/dicomsorter/data
-
+  dvh-calculator:
+    image: ghcr.io/mdw-nl/dvh_consumer:roi-combination-work
+    container_name: dvh-calculator
+    depends_on:
+      - postgres
+    networks:
+      - protrait
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq

@@ -9,7 +9,8 @@ from .query import INSERT_QUERY_DICOM_META, INSERT_QUERY_DICOM_ASS, \
 from .src.dicom_data import return_dicom_data, create_folder
 from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, RABBITMQ_URL
 import pika
-
+import threading
+import time
 
 class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and
@@ -18,27 +19,45 @@ class DicomStoreHandler:
     def __init__(self, db):
         self.db = db
         self.ae = AE(ae_title=SCP_AE_TITLE)
-        self.connection = None
+        self.connection_rmq = None
+        self.channel = None
+        self.stop_heartbeat = threading.Event()
 
     def open_connection(self):
         """Establish connection"""
+        parameters = pika.URLParameters(RABBITMQ_URL)
+        connection = pika.BlockingConnection(parameters)
+        self.connection_rmq = connection
+        self.channel = self.connection_rmq.channel()
 
-        connection = pika.BlockingConnection(pika.URLParameters(RABBITMQ_URL))
-        self.connection = connection
+
+    def send_heartbeats(self):
+        """Send periodic heartbeats to keep the connection alive"""
+        while not self.stop_heartbeat.is_set():
+            try:
+                logging.info("Sending heartbeat..")
+                self.channel.basic_qos(prefetch_count=1)
+                logging.info("Heartbeat sent.")
+            except Exception as e:
+                print(f"Heartbeat error: {e}")
+                raise e
+            time.sleep(10)
 
     def close_connection(self):
         """Close connection"""
 
-        self.connection.close()
+        self.connection_rmq.close()
 
     def create_queue(self):
-        channel = self.connection.channel()
-        channel.queue_declare(queue=QUEUE_NAME, passive=False, durable=True)
+
+        self.channel.queue_declare(queue=QUEUE_NAME, passive=False, durable=True)
+        heartbeat_thread = threading.Thread(target=self.send_heartbeats, daemon=True)
+        heartbeat_thread.start()
 
     def send_to_queue(self, message):
         # Convert Python dict to JSON string
 
-        self.connection.channel().basic_publish(
+        self.channel.basic_publish(
             exchange='',
             routing_key=QUEUE_NAME,
             body=message.encode('utf-8'),  # Convert to bytes
@@ -59,7 +78,7 @@ class DicomStoreHandler:
             except:
                 logging.warning("Inserting in the queue failed.")
                 raise
-        logging.info(f"Insertion complete")
+        logging.info(f"Insertion queue complete")
 
     def handle_assoc_open(self, event):
         """

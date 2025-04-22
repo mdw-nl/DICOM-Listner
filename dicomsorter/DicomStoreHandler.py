@@ -90,19 +90,20 @@ class DicomStoreHandler:
 
     def handle_store(self, event):
         """Receives and stores DICOM images while logging metadata to the database."""
+        logging.info("Handle store ")
         ds = event.dataset
         ds.file_meta = event.file_meta
         assoc_id = event.assoc.assoc_id
 
         patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
-            instance_number, modality_type,referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(ds)
+            instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(ds)
 
         filename = create_folder(patient_id, study_uid, modality, sop_uid)
         logging.info(f"Folder structure create. Saving in {filename}")
         ds.save_as(filename, write_like_original=False)
 
         logging.info(f"[INFO] Stored {modality} file for Patient {patient_id}: {filename}")
-        #filename = filename.replace("./data/", "/Users/alessioromita/Documents/data_test_docker/")
+        # filename = filename.replace("./data/", "/Users/alessioromita/Documents/data_test_docker/")
         params = (
             patient_id,
             study_uid,

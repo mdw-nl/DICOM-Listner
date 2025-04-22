@@ -78,6 +78,7 @@ if __name__ == "__main__":
 
     send_all_dicoms(DICOM_FOLDER)
 
+
     QUEUE_NAME = "DICOM_Processor"
 #
     ## Connect to RabbitMQ

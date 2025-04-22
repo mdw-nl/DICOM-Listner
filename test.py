@@ -6,8 +6,14 @@ from pynetdicom.presentation import StoragePresentationContexts
 import psycopg2
 import pika
 import gc
+import zipfile
+import urllib.request
 
 import logging
+
+ZIP_PATH = 'dicomtestdata.zip'
+DICOM_DATA_PATH = 'dicomdata'
+DICOM_URL = 'https://github.com/mdw-nl/test-data/releases/download/dicom-data-1.0.0/dicomdata.zip'
 RABBITMQ_URL = "amqp://user:password@rabbitmq:5672/"
 # Enable debug logging (optional)
 debug_logger()
@@ -42,8 +48,9 @@ def send_fold(folder_path):
 
                         # Establish association with the SCP
 
+                        # Send the DICOM file
                         print(f"[INFO] Sending: {file_path}")
-                        status = assoc.send_c_store(ds)  # Send the DICOM file
+                        status = assoc.send_c_store(ds)
 
                         if status:
                             print(f"[INFO] C-STORE Response: 0x{status.Status:04X}")
@@ -61,10 +68,7 @@ def send_fold(folder_path):
 
 def send_all_dicoms(folder_path):
     """Send all DICOM files from a folder."""
-    for folder in os.listdir(folder_path):
-        if folder !='.DS_Store':
-            folder_c = folder_path+"/"+folder+"/"
-            send_fold(folder_c)
+    send_fold(folder_path)
 
 
 
@@ -75,6 +79,11 @@ def callback(ch, method, properties, body):
 
 
 if __name__ == "__main__":
+
+    if not os.path.exists(ZIP_PATH):
+        urllib.request.urlretrieve(DICOM_URL, ZIP_PATH)
+    with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
+        zip_ref.extractall('')
 
     send_all_dicoms(DICOM_FOLDER)
 

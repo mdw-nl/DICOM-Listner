@@ -4,6 +4,7 @@ WORKDIR /dicomsorter
 
 COPY dicomsorter dicomsorter
 COPY main.py main.py
+COPY Config Config
 COPY requirements.txt requirements.txt
 
 ENV PYTHONPATH "${PYTHONPATH}:/dicomsorter"

@@ -4,6 +4,8 @@ from pynetdicom import evt, StoragePresentationContexts, debug_logger
 from dicomsorter import PostgresInterface, DicomStoreHandler, query
 from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
 from time import sleep
+import yaml
+
 BASE_DIR = "dicom_storage"
 
 logging.basicConfig(
@@ -17,12 +19,32 @@ debug_logger()
 logging.getLogger("pynetdicom").setLevel(logging.DEBUG)
 
 
+def read_config():
+    with open('/Config/config.yaml', 'r') as file:
+        file_red = yaml.safe_load(file)
+        return file_red
+
+
+class Config:
+    def __init__(self, section_name):
+        file = read_config()
+        self.config = None
+        self.read_config_section(file, section_name)
+
+    def read_config_section(self, file, sect):
+        self.config = file.get(sect, {})
+        logging.info(f"Config data : {self.config}")
+
+
 def set_up_db():
     """
     Establish connection to the database and check if the required tables exist of if they need to be created
     :return:
     """
-    db = PostgresInterface(host="postgres", database="postgres", user="postgres", password="postgres", port=5432)
+    config_dict_db = Config("postgres").config
+    host, port, user, pwd, db = config_dict_db["host"], config_dict_db["port"], \
+        config_dict_db["username"], config_dict_db["password"], config_dict_db["db"]
+    db = PostgresInterface(host=host, database=db, user=user, password=pwd, port=port)
     db.connect()
 
     # Check if the 'users' table exists
@@ -64,7 +86,7 @@ if __name__ == "__main__":
 
     # Define event handlers
     handlers = [(evt.EVT_C_STORE, dh.handle_store),
-                (evt.EVT_CONN_OPEN, dh.handle_assoc_open), (evt.EVT_CONN_CLOSE,dh.handle_assoc_close)]
+                (evt.EVT_CONN_OPEN, dh.handle_assoc_open), (evt.EVT_CONN_CLOSE, dh.handle_assoc_close)]
 
     print("[INFO] Starting DICOM Listener on port 104...")
     dh.ae.start_server(("0.0.0.0", 104), block=True, evt_handlers=handlers)

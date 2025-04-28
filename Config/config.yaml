@@ -1,0 +1,6 @@
+postgres:
+    host: "${MY_VARIABLE}"
+    port: "5432"
+    username: "${POSTGRES_USER}"
+    password: "${POSTGRES_PASSWORD}"
+    db: "${POSTGRES_DB}"

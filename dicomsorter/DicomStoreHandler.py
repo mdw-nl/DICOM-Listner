@@ -12,6 +12,7 @@ import pika
 import threading
 import time
 
+
 class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and
      association information to the database to the database."""
@@ -23,13 +24,12 @@ class DicomStoreHandler:
         self.channel = None
         self.stop_heartbeat = threading.Event()
 
-    def open_connection(self):
+    def open_connection(self, rabbitmq_url):
         """Establish connection"""
-        parameters = pika.URLParameters(RABBITMQ_URL)
+        parameters = pika.URLParameters(rabbitmq_url)
         connection = pika.BlockingConnection(parameters)
         self.connection_rmq = connection
         self.channel = self.connection_rmq.channel()
-
 
     def send_heartbeats(self):
         """Send periodic heartbeats to keep the connection alive"""

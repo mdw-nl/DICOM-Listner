@@ -4,3 +4,9 @@ postgres:
     username: "${POSTGRES_USER}"
     password: "${POSTGRES_PASSWORD}"
     db: "${POSTGRES_DB}"
+rabbitMQ:
+  host: "host.docker.internal"
+  port: "5672"
+  username: "user"
+  password: "password"
+  queue_name: "DICOM_Processor"

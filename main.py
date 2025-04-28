@@ -36,12 +36,11 @@ class Config:
         logging.info(f"Config data : {self.config}")
 
 
-def set_up_db():
+def set_up_db(config_dict_db):
     """
     Establish connection to the database and check if the required tables exist of if they need to be created
     :return:
     """
-    config_dict_db = Config("postgres").config
     host, port, user, pwd, db = config_dict_db["host"], config_dict_db["port"], \
         config_dict_db["username"], config_dict_db["password"], config_dict_db["db"]
     db = PostgresInterface(host=host, database=db, user=user, password=pwd, port=port)
@@ -67,13 +66,20 @@ def set_up_db():
 # Function to handle incoming DICOM images
 if __name__ == "__main__":
     # Set up the DICOM Application Entity (AE) as an SCP
+    config_db = Config("postgres").config
+    rabbitMQ_config = Config("rabbitMQ").config
 
-    database = set_up_db()
+    database = set_up_db(config_db)
     dh = DicomStoreHandler(database)
+    host, port, user, pwd = rabbitMQ_config["host"], rabbitMQ_config["port"] \
+        , rabbitMQ_config["username"], rabbitMQ_config["password"]
+
+    connection_string = f"amqp://{user}:{pwd}@{host}:{port}/"
+    logging.info(f"Connection string {connection_string}")
     for attempt in range(NUMBER_ATTEMPTS):
         logging.info(f"Trying connection {attempt} for RabbitMQ")
         try:
-            dh.open_connection()
+            dh.open_connection(connection_string)
         except:
             if attempt < NUMBER_ATTEMPTS - 1:
                 logging.info(f"Retrying in {RETRY_DELAY_IN_SECONDS} seconds...")

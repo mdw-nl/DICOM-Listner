@@ -75,7 +75,6 @@ if __name__ == "__main__":
         , rabbitMQ_config["username"], rabbitMQ_config["password"]
 
     connection_string = f"amqp://{user}:{pwd}@{host}:{port}/"
-    logging.info(f"Connection string {connection_string}")
     for attempt in range(NUMBER_ATTEMPTS):
         logging.info(f"Trying connection {attempt} for RabbitMQ")
         try:

@@ -1,9 +1,9 @@
 postgres:
-    host: "${MY_VARIABLE}"
+    host: "host.docker.internal"
     port: "5432"
-    username: "${POSTGRES_USER}"
-    password: "${POSTGRES_PASSWORD}"
-    db: "${POSTGRES_DB}"
+    username: "postgres"
+    password: "postgres"
+    db: "postgres"
 rabbitMQ:
   host: "host.docker.internal"
   port: "5672"

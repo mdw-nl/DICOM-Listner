@@ -60,6 +60,12 @@ def set_up_db(config_dict_db):
         logger.info("Table associations does not exist. Creating....")
         db.execute_query(query=query.CREATE_DATABASE_QUERY_2)
         logger.info("Table created....")
+    if db.check_table_exists("calculation_status"):
+        logger.info("The 'calculation_status' table exists.")
+    else:
+        logger.info("Table calculation_status does not exist. Creating....")
+        db.execute_query(query=query.CREATE_DATABASE_QUERY_3)
+        logger.info("Table created....")
     return db
 
 

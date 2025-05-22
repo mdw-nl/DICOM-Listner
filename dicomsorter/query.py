@@ -27,6 +27,16 @@ CREATE TABLE associations (
     timestamp TIMESTAMP NOT NULL          
 );"""
 
+CREATE_DATABASE_QUERY_3 = """
+CREATE TABLE calculation_status (
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,     
+    study_uid TEXT,       
+    status BOOLEAN NOT NULL,                          
+    timestamp TIMESTAMP NOT NULL          
+);"""
+
+
+
 
 INSERT_QUERY_DICOM_META = """
     INSERT INTO dicom_insert (

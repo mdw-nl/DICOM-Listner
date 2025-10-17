@@ -5,6 +5,7 @@ from dicomsorter import PostgresInterface, DicomStoreHandler, query
 from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
 from time import sleep
 import yaml
+from config_handler import Config
 
 BASE_DIR = "dicom_storage"
 
@@ -17,24 +18,6 @@ logger = logging.getLogger()
 
 debug_logger()
 logging.getLogger("pynetdicom").setLevel(logging.DEBUG)
-
-
-def read_config():
-    with open('Config/config.yaml', 'r') as file:
-        file_red = yaml.safe_load(file)
-        return file_red
-
-
-class Config:
-    def __init__(self, section_name):
-        file = read_config()
-        self.config = None
-        self.read_config_section(file, section_name)
-
-    def read_config_section(self, file, sect):
-        self.config = file.get(sect, {})
-        logging.info(f"Config data : {self.config}")
-
 
 def set_up_db(config_dict_db):
     """

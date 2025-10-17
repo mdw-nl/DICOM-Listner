@@ -7,6 +7,6 @@ postgres:
 rabbitMQ:
   host: "host.docker.internal"
   port: "5672"
-  username: "guest"
-  password: "guest"
+  username: "user"
+  password: "password"
   queue_name: "DICOM_Processor"

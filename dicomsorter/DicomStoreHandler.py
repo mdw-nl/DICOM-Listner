@@ -121,7 +121,7 @@ class DicomStoreHandler:
         patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
             instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(ds)
 
-        if study_uid not in self.valid_uuids:
+        if study_uid not in self.valid_uuids: #Check if the study ID is in the uuids.txt if not dont release
             logging.warning(f"{study_uid} is not part of the expected studies. {study_uid} did not get saved in the postgres.")
             self.delete_assoc(assoc_id)
             return 0xA700

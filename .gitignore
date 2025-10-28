@@ -3,3 +3,4 @@ __pycache__/
 dicomdata/
 dicomtestdata.zip
 associationdata/
+anonimised_dicomdata2/

@@ -24,6 +24,10 @@ class DicomStoreHandler:
         self.channel = None
         self.stop_heartbeat = threading.Event()
 
+        with open("dicomsorter/uuids.txt") as f:
+            self.valid_uuids = [line.strip() for line in f if line.strip()]
+            
+
     def open_connection(self, rabbitmq_url):
         """Establish connection"""
         parameters = pika.URLParameters(rabbitmq_url)
@@ -117,6 +121,13 @@ class DicomStoreHandler:
         patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
             instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(ds)
 
+        if study_uid not in self.valid_uuids:
+            logging.warning(f"{study_uid} is not part of the expected studies. {study_uid} did not get saved in the postgres.")
+            self.delete_assoc(assoc_id)
+            return 0xA700
+        logging.info(f"{study_uid} is found in the expected studies.")
+        
+        
         filename = create_folder(patient_id, study_uid, modality, sop_uid)
         logging.info(f"Folder structure create. Saving in {filename}")
         ds.save_as(filename, write_like_original=False)

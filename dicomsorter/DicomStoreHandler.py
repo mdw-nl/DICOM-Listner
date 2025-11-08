@@ -122,8 +122,12 @@ class DicomStoreHandler:
             instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(ds)
 
         if study_uid not in self.valid_uuids: #Check if the study ID is in the uuids.txt if not dont release
-            logging.warning(f"{study_uid} is not part of the expected studies. {study_uid} did not get saved in the postgres.")
-            self.delete_assoc(assoc_id)
+            logging.warning(
+                f"Received study UID {study_uid} which is not in the allowed list. "
+                "This C-STORE request will be rejected. AE: %s:%s",
+                event.assoc.requestor.ae_title,
+                event.assoc.requestor.address
+            )
             return 0xA700
         logging.info(f"{study_uid} is found in the expected studies.")
         

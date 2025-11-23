@@ -17,5 +17,7 @@ RETRY_DELAY_IN_SECONDS = 10
 RABBITMQ_URL = f"amqp://{user}:{pwd}@rabbitmq:5672/"
 QUEUE_NAME = "DICOM_Processor"
 BASE_DIR = os.path.join(PROJECT_ROOT, "data")  # safer absolute path
+ELASTICSEARCH_URL = "http://localhost:9200"
+
 
 print(RABBITMQ_URL)

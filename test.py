@@ -80,10 +80,12 @@ def callback(ch, method, properties, body):
 
 if __name__ == "__main__":
 
-    if not os.path.exists(ZIP_PATH):
-        urllib.request.urlretrieve(DICOM_URL, ZIP_PATH)
-    with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
-        zip_ref.extractall('')
+    dicom_folder = "anonimised_dicomdata2"
+    
+    # if not os.path.exists(ZIP_PATH):
+    #     urllib.request.urlretrieve(DICOM_URL, ZIP_PATH)
+    # with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
+    #     zip_ref.extractall('')
 
     send_all_dicoms(DICOM_FOLDER)
 

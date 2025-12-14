@@ -11,6 +11,7 @@ from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, RABBITMQ_URL
 import pika
 import threading
 import time
+from anonymization import Anonymizer
 
 
 class DicomStoreHandler:
@@ -23,6 +24,7 @@ class DicomStoreHandler:
         self.connection_rmq = None
         self.channel = None
         self.stop_heartbeat = threading.Event()
+        self.anonymizer = Anonymizer()
 
         with open("dicomsorter/uuids.txt") as f:
             self.valid_uuids = [line.strip() for line in f if line.strip()]
@@ -121,7 +123,7 @@ class DicomStoreHandler:
         patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
             instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(ds)
 
-        if study_uid not in self.valid_uuids: #Check if the study ID is in the uuids.txt if not dont release
+        if study_uid not in self.valid_uuids: # Check if the study ID is in the uuids.txt if not dont release
             logging.warning(
                 f"Received study UID {study_uid} which is not in the allowed list. "
                 "This C-STORE request will be rejected. AE: %s:%s",
@@ -131,6 +133,7 @@ class DicomStoreHandler:
             return 0xA700
         logging.info(f"{study_uid} is found in the expected studies.")
         
+        ds = self.anonymizer.run(ds)
         
         filename = create_folder(patient_id, study_uid, modality, sop_uid)
         logging.info(f"Folder structure create. Saving in {filename}")

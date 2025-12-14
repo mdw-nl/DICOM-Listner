@@ -57,4 +57,4 @@ class ElasticSearchHandler:
     
 if __name__ == "__main__":
     EShandler = ElasticSearchHandler()
-    EShandler.single_file("anonimised_dicomdata2/anonymised_DICOM_4.dcm", "dicom")
+    EShandler.single_file("dicomdata/RS_no_nody.dcm", "dicom")

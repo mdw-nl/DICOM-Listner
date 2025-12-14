@@ -4,3 +4,5 @@ pydicom
 pyyaml
 pika
 elasticsearch
+deid
+pandas

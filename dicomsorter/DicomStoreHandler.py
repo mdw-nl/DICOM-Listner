@@ -130,14 +130,16 @@ class DicomStoreHandler:
                 event.assoc.requestor.ae_title,
                 event.assoc.requestor.address
             )
-            return 0xA700
+            return 0xC211
         logging.info(f"{study_uid} is found in the expected studies.")
         
-        ds = self.anonymizer.run(ds)
+        anonymised_ds = self.anonymizer.run(ds)
+        if anonymised_ds is None:
+            return 0xC210  # Processing failure
         
         filename = create_folder(patient_id, study_uid, modality, sop_uid)
         logging.info(f"Folder structure create. Saving in {filename}")
-        ds.save_as(filename, write_like_original=False)
+        anonymised_ds.save_as(filename, write_like_original=False)
 
         logging.info(f"[INFO] Stored {modality} file for Patient {patient_id}: {filename}")
         # filename = filename.replace("./data/", "/Users/alessioromita/Documents/data_test_docker/")

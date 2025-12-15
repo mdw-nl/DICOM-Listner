@@ -11,6 +11,8 @@ from datetime import datetime
 from deid.dicom import get_files, replace_identifiers, get_identifiers
 from deid.config import DeidRecipe
 from pydicom.datadict import add_private_dict_entries
+import tempfile
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -98,28 +100,37 @@ class Anonymizer:
         
     def anonymize(self, dicom_obj, recipe_path, patient_lookup_csv):
 
-        recipe = DeidRecipe(deid=recipe_path)
-
-        # Suppress logger output
+    # Suppress logger output during deid processing
         self.suppress_output()
 
-        # Prepare identifiers for de-identification
-        items = get_identifiers(dicom_obj, expand_sequences=False)
-        for key in items:
-            items[key].update({
-                "CSV_lookup_func": self.patient_mapping(patient_lookup_csv),
-                "hash_func": self.hash_func,
-                "DeIdentificationMethod": self.current_date,
-                "PatientName": self.PatientName
-            })
+        try:
+            # Create a temporary folder for the DICOM file because deid does not work for in memory processing
+            with tempfile.TemporaryDirectory() as tmpdir:
+                temp_path = os.path.join(tmpdir, "temp.dcm")
 
-        # Apply anonymization directly to the dataset
-        replace_identifiers(dicom_files=dicom_obj, deid=recipe, ids=items) 
+                # Save the in-memory dataset to a temporary file
+                dicom_obj.save_as(temp_path, write_like_original=False)
+                
+                items = get_identifiers(temp_path, expand_sequences=False)
+                for key in items:
+                    items[key].update({
+                        "CSV_lookup_func": self.patient_mapping(patient_lookup_csv),
+                        "hash_func": self.hash_func,
+                        "DeIdentificationMethod": self.current_date,
+                        "PatientName": self.PatientName
+                    })
 
-        # Restore logger output
-        self.restore_output()
+                # Apply anonymization in-place on the temp file
+                recipe = DeidRecipe(deid=recipe_path)
+                replace_identifiers(dicom_files=temp_path, deid=recipe, ids=items)
 
-        # Add private tags
+                # Read the anonymized file back into memory
+                dicom_obj = pydicom.dcmread(temp_path)
+
+        finally:
+            self.restore_output()
+
+        # Add private tags definitions
         private_entries = {
             0x10011001: ("SH", "1", "ProfileName"),
             0x10031001: ("SH", "1", "ProjectName"),
@@ -141,16 +152,20 @@ class Anonymizer:
         
     
     def run(self, dicomdata):
-                
         try:
-            if getattr(dicomdata, "Modality", "") == "RTSTRUCT": # Check if the file is a rtstuct then we also need to normalize the ROI's
-                dicomdata = self.ROI_normalization(dicomdata)
-                
+            if dicomdata.Modality == "RTSTRUCT":
+                self.ROI_normalization(dicomdata)
+
             dicomdata = self.anonymize(dicomdata, self.recipe_path, self.patient_lookup_csv)
-            logging.info("file anonymised")
+
+            if dicomdata is None:
+                logging.error("Anonymization failed, returning None")
+                return None
+
+            logging.info("File anonymised successfully")
+            return dicomdata
 
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
-            return
+            logger.error(f"Error processing message in run(): {e}")
+            return None
         
-        return dicomdata

@@ -111,7 +111,8 @@ class Anonymizer:
                 # Save the in-memory dataset to a temporary file
                 dicom_obj.save_as(temp_path, write_like_original=False)
                 
-                items = get_identifiers(temp_path, expand_sequences=False)
+                items = get_identifiers([temp_path], expand_sequences=False)
+
                 for key in items:
                     items[key].update({
                         "CSV_lookup_func": self.patient_mapping(patient_lookup_csv),
@@ -122,10 +123,8 @@ class Anonymizer:
 
                 # Apply anonymization in-place on the temp file
                 recipe = DeidRecipe(deid=recipe_path)
-                replace_identifiers(dicom_files=temp_path, deid=recipe, ids=items)
-
-                # Read the anonymized file back into memory
-                dicom_obj = pydicom.dcmread(temp_path)
+                updated = replace_identifiers(dicom_files=[temp_path], deid=recipe, ids=items)
+                dicom_obj = updated[0]
 
         finally:
             self.restore_output()

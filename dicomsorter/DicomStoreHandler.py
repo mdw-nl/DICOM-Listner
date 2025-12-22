@@ -137,6 +137,9 @@ class DicomStoreHandler:
         if anonymised_ds is None:
             return 0xC210  # Processing failure
         
+        patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
+            instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(anonymised_ds)
+        
         filename = create_folder(patient_id, study_uid, modality, sop_uid)
         logging.info(f"Folder structure create. Saving in {filename}")
         anonymised_ds.save_as(filename, write_like_original=False)

@@ -12,7 +12,7 @@ import pika
 import threading
 import time
 from anonymization import Anonymizer
-
+import json
 
 class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and
@@ -70,6 +70,31 @@ class DicomStoreHandler:
             properties=pika.BasicProperties(delivery_mode=2)  # Persistent messages
         )
 
+    def send_to_xnat(self, data_folder: str):
+        """Send a JSON message to the XNAT RabbitMQ queue with the folder path containing anonymised data."""
+
+        message = {"folder_path": data_folder}
+
+        body = json.dumps(message)
+
+        logging.info(f"Sending XNAT message: {body}")
+
+        # Ensure the XNAT queue exists
+        self.channel.queue_declare(
+            queue="xnat",
+            durable=True
+        )
+
+        self.channel.basic_publish(
+            exchange="",
+            routing_key="xnat",
+            body=body.encode("utf-8"),
+            properties=pika.BasicProperties(
+                content_type="application/json",
+                delivery_mode=2  # persistent
+            )
+        )
+
     def check_uid_db(self, study_uid):
         """
 
@@ -112,7 +137,11 @@ class DicomStoreHandler:
     def handle_assoc_close(self, event):
         for uid in event.assoc.list_uid:
             self.send_to_queue(uid)
-
+             
+            logging.info("Sending dicom data to XNAT")  
+            study_folder = os.path.join(BASE_DIR, uid)
+            self.send_to_xnat(study_folder)
+            
     def handle_store(self, event):
         """Receives and stores DICOM images while logging metadata to the database."""
         logging.info("Handle store ")
@@ -123,7 +152,8 @@ class DicomStoreHandler:
         patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
             instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(ds)
 
-        if study_uid not in self.valid_uuids: # Check if the study ID is in the uuids.txt if not dont release
+        # Check if the study ID is in the uuids.txt if not dont release
+        if study_uid not in self.valid_uuids:
             logging.warning(
                 f"Received study UID {study_uid} which is not in the allowed list. "
                 "This C-STORE request will be rejected. AE: %s:%s",
@@ -133,6 +163,7 @@ class DicomStoreHandler:
             return 0xC211
         logging.info(f"{study_uid} is found in the expected studies.")
         
+        # Anonymise the data
         anonymised_ds = self.anonymizer.run(ds)
         if anonymised_ds is None:
             return 0xC210  # Processing failure
@@ -168,5 +199,5 @@ class DicomStoreHandler:
         self.db.execute_query(INSERT_QUERY_DICOM_META, params)
         logging.info("Insert complete")
         logging.info(f"These are study uid element {event.assoc.list_uid}")
-
+              
         return 0x0000

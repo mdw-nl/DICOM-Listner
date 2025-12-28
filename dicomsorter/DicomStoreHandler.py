@@ -123,6 +123,7 @@ class DicomStoreHandler:
         ae_port = event.assoc.requestor.port
         event.assoc.assoc_id = assoc_id
         event.assoc.list_uid = set()
+        event.assoc.patient_id = None
 
         params = (
             assoc_id,
@@ -136,10 +137,11 @@ class DicomStoreHandler:
 
     def handle_assoc_close(self, event):
         for uid in event.assoc.list_uid:
+            patient_id = event.assoc.patient_id
             self.send_to_queue(uid)
              
             logging.info("Sending dicom data to XNAT")  
-            study_folder = os.path.join(BASE_DIR, uid)
+            study_folder = os.path.join(BASE_DIR, patient_id, uid)
             self.send_to_xnat(study_folder)
             
     def handle_store(self, event):
@@ -171,6 +173,9 @@ class DicomStoreHandler:
         patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
             instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(anonymised_ds)
         
+        if event.assoc.patient_id is None:
+            event.assoc.patient_id = patient_id
+            
         filename = create_folder(patient_id, study_uid, modality, sop_uid)
         logging.info(f"Folder structure create. Saving in {filename}")
         anonymised_ds.save_as(filename, write_like_original=False)

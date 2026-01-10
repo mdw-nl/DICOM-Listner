@@ -19,5 +19,6 @@ QUEUE_NAME = "DICOM_Processor"
 BASE_DIR = os.path.join(PROJECT_ROOT, "data")  # safer absolute path
 ELASTICSEARCH_URL = "http://localhost:9200"
 
-
-print(RABBITMQ_URL)
+XNAT_USERNAME = "admin"
+XNAT_PASSWORD = "admin"
+XNAT_URL = "http://xnat-nginx:80"

@@ -6,3 +6,4 @@ pika
 elasticsearch
 deid
 pandas
+requests

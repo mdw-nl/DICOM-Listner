@@ -13,6 +13,7 @@ import threading
 import time
 from anonymization import Anonymizer
 import json
+from XNAThandler import DICOMtoXNAT
 
 class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and
@@ -25,6 +26,7 @@ class DicomStoreHandler:
         self.channel = None
         self.stop_heartbeat = threading.Event()
         self.anonymizer = Anonymizer()
+        self.XNATsender = DICOMtoXNAT()
 
         with open("dicomsorter/uuids.txt") as f:
             self.valid_uuids = [line.strip() for line in f if line.strip()]
@@ -68,31 +70,6 @@ class DicomStoreHandler:
             routing_key=QUEUE_NAME,
             body=message.encode('utf-8'),  # Convert to bytes
             properties=pika.BasicProperties(delivery_mode=2)  # Persistent messages
-        )
-
-    def send_to_xnat(self, data_folder: str):
-        """Send a JSON message to the XNAT RabbitMQ queue with the folder path containing anonymised data."""
-
-        message = {"folder_path": data_folder}
-
-        body = json.dumps(message)
-
-        logging.info(f"Sending XNAT message: {body}")
-
-        # Ensure the XNAT queue exists
-        self.channel.queue_declare(
-            queue="xnat",
-            durable=True
-        )
-
-        self.channel.basic_publish(
-            exchange="",
-            routing_key="xnat",
-            body=body.encode("utf-8"),
-            properties=pika.BasicProperties(
-                content_type="application/json",
-                delivery_mode=2  # persistent
-            )
         )
 
     def check_uid_db(self, study_uid):
@@ -142,7 +119,7 @@ class DicomStoreHandler:
              
             logging.info("Sending dicom data to XNAT")  
             study_folder = os.path.join(BASE_DIR, patient_id, uid)
-            self.send_to_xnat(study_folder)
+            self.XNATsender.run(study_folder)
             
     def handle_store(self, event):
         """Receives and stores DICOM images while logging metadata to the database."""

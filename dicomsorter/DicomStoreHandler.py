@@ -12,8 +12,7 @@ import pika
 import threading
 import time
 from anonymization import Anonymizer
-import json
-from XNAThandler import DICOMtoXNAT
+from .XNAThandler import DICOMtoXNAT
 
 class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and

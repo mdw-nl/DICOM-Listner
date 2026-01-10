@@ -8,9 +8,9 @@ import time
 import zipfile
 import uuid
 
-from src.global_var import XNAT_USERNAME
-from src.global_var import XNAT_PASSWORD
-from src.global_var import XNAT_URL
+from .src.global_var import XNAT_USERNAME
+from .src.global_var import XNAT_PASSWORD
+from .src.global_var import XNAT_URL
 
 class DICOMtoXNAT:
     def __init__(self):

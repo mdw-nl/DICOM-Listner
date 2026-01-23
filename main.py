@@ -3,6 +3,8 @@ from pynetdicom import evt, StoragePresentationContexts, debug_logger
 from dicomsorter import PostgresInterface, DicomStoreHandler, query
 from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
 from time import sleep
+import traceback
+import yaml
 from config_handler import Config
 
 logging.basicConfig(
@@ -73,10 +75,18 @@ if __name__ == "__main__":
                 raise
     dh.create_queue()
     dh.ae.supported_contexts = StoragePresentationContexts
+    try:
+        dh.attempt_connection_rmq(connection_string)
+        dh.create_queue()
+        dh.ae.supported_contexts = StoragePresentationContexts
 
-    # Define event handlers
-    handlers = [(evt.EVT_C_STORE, dh.handle_store),
-                (evt.EVT_CONN_OPEN, dh.handle_assoc_open), (evt.EVT_CONN_CLOSE, dh.handle_assoc_close)]
+        # Define event handlers
+        handlers = [(evt.EVT_C_STORE, dh.handle_store),
+                    (evt.EVT_CONN_OPEN, dh.handle_assoc_open), (evt.EVT_CONN_CLOSE, dh.handle_assoc_close)]
 
-    print("[INFO] Starting DICOM Listener on port 104...")
-    dh.ae.start_server(("0.0.0.0", 104), block=True, evt_handlers=handlers)
+        logger.info("[INFO] Starting DICOM Listener on port 104...")
+        dh.ae.start_server(("0.0.0.0", 104), block=True, evt_handlers=handlers)
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+        logger.error(traceback.format_exc())
+        raise e

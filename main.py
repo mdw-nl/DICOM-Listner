@@ -1,12 +1,11 @@
-from pydicom import dcmread
 import logging
 from pynetdicom import evt, StoragePresentationContexts, debug_logger
 from dicomsorter import PostgresInterface, DicomStoreHandler, query
+from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
+from time import sleep
 import traceback
 import yaml
 from config_handler import Config
-
-BASE_DIR = "dicom_storage"
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -63,6 +62,19 @@ if __name__ == "__main__":
         , rabbitMQ_config["username"], rabbitMQ_config["password"]
 
     connection_string = f"amqp://{user}:{pwd}@{host}:{port}/"
+    for attempt in range(NUMBER_ATTEMPTS):
+        logging.info(f"Trying connection {attempt} for RabbitMQ")
+        try:
+            dh.open_connection(connection_string)
+        except Exception:
+            if attempt < NUMBER_ATTEMPTS - 1:
+                logging.info(f"Retrying in {RETRY_DELAY_IN_SECONDS} seconds...")
+                sleep(RETRY_DELAY_IN_SECONDS)
+            else:
+                logging.exception("Unable to connect to the RabbitMq after time.")
+                raise
+    dh.create_queue()
+    dh.ae.supported_contexts = StoragePresentationContexts
     try:
         dh.attempt_connection_rmq(connection_string)
         dh.create_queue()

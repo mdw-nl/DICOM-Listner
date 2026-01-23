@@ -1,13 +1,13 @@
-import os
 import logging
-from .src.global_var import BASE_DIR
 from pynetdicom import AE
 import uuid
 from datetime import datetime
 from .query import INSERT_QUERY_DICOM_META, INSERT_QUERY_DICOM_ASS, \
     UNIQUE_UID_SELECT
 from .src.dicom_data import return_dicom_data, create_folder
-from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, RABBITMQ_URL, NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
+
+from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
+
 import pika
 import threading
 import time
@@ -83,13 +83,13 @@ class DicomStoreHandler:
         :param study_uid:
         :return:
         """
-        result = self.db.fetch_all(UNIQUE_UID_SELECT, params=study_uid)
-        if not result:
+        result = self.db.fetch_one(UNIQUE_UID_SELECT, params=(study_uid,))
+        if not result or not result[0]:
             try:
                 self.send_to_queue(study_uid)
                 logging.info(f"Inserting {study_uid} in the queue")
-            except:
-                logging.warning("Inserting in the queue failed.")
+            except Exception:
+                logging.exception("Inserting in the queue failed.")
                 raise
         logging.info(f"Insertion queue complete")
 
@@ -118,7 +118,7 @@ class DicomStoreHandler:
 
     def handle_assoc_close(self, event):
         for uid in event.assoc.list_uid:
-            self.send_to_queue(uid)
+            self.check_uid_db(uid)
 
     def handle_store(self, event):
         """Receives and stores DICOM images while logging metadata to the database."""

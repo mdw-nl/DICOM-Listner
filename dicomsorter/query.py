@@ -53,6 +53,9 @@ INSERT_QUERY_DICOM_ASS = """
 """
 
 UNIQUE_UID_SELECT = """
-    SELECT EXIST(SELECT study_instance_uid FROM public.dicom_insert WHERE study_instance_uid = %s;)
-    VALUES (%s);
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.dicom_insert
+        WHERE study_instance_uid = %s
+    );
 """

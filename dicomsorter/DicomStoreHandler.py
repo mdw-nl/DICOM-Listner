@@ -7,7 +7,7 @@ from datetime import datetime
 from .query import INSERT_QUERY_DICOM_META, INSERT_QUERY_DICOM_ASS, \
     UNIQUE_UID_SELECT
 from .src.dicom_data import return_dicom_data, create_folder
-from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, RABBITMQ_URL
+from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, RABBITMQ_URL, NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
 import pika
 import threading
 import time
@@ -23,6 +23,19 @@ class DicomStoreHandler:
         self.connection_rmq = None
         self.channel = None
         self.stop_heartbeat = threading.Event()
+
+    def attempt_connection_rmq(self, connection_string):
+        for attempt in range(NUMBER_ATTEMPTS):
+            logging.info(f"Trying connection {attempt} for RabbitMQ")
+            try:
+                self.open_connection(connection_string)
+            except:
+                if attempt < NUMBER_ATTEMPTS - 1:
+                    logging.info(f"Retrying in {RETRY_DELAY_IN_SECONDS} seconds...")
+                    time.sleep(RETRY_DELAY_IN_SECONDS)
+                else:
+                    raise Exception(
+                        f"Unable to connect to the RabbitMq after time.")
 
     def open_connection(self, rabbitmq_url):
         """Establish connection"""

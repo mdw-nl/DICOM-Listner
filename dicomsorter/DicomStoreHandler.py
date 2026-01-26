@@ -84,6 +84,8 @@ class DicomStoreHandler:
         :return:
         """
         result = self.db.fetch_one(UNIQUE_UID_SELECT, params=(study_uid,))
+        query_r = not result or not result[0]
+        logging.info(f"There are elements for {study_uid} in the data base?  {query_r}")
         if not result or not result[0]:
             try:
                 self.send_to_queue(study_uid)
@@ -118,7 +120,7 @@ class DicomStoreHandler:
 
     def handle_assoc_close(self, event):
         for uid in event.assoc.list_uid:
-            self.check_uid_db(uid)
+            self.send_to_queue(uid)
 
     def handle_store(self, event):
         """Receives and stores DICOM images while logging metadata to the database."""

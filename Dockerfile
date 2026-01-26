@@ -2,7 +2,6 @@ FROM python:3.12-slim
 
 WORKDIR /dicomsorter
 
-COPY config_handler.py config_handler.py
 COPY dicomsorter dicomsorter
 COPY main.py main.py
 COPY Config Config

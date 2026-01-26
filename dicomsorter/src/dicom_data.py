@@ -3,8 +3,8 @@ import logging
 from pydicom import Dataset
 import os
 
-from .global_var import BASE_DIR
-
+#from .global_var import BASE_DIR
+BASE_DIR = ""
 
 def return_dicom_data(ds: Dataset):
     """

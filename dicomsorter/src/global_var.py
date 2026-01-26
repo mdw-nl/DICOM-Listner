@@ -4,7 +4,7 @@ NUMBER_ATTEMPTS = 5
 RETRY_DELAY_IN_SECONDS = 10
 RABBITMQ_URL = "amqp://guest:guest@rabbitmq:5672/"
 QUEUE_NAME = "DICOM_Processor"
-
+BASE_DIR = "./data/"
 
 
 

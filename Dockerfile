@@ -15,5 +15,11 @@ ENV PYTHONPATH "${PYTHONPATH}:/dicomsorter"
 RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 104
+EXPOSE 8080
 
-CMD ["python", "main.py"]
+
+# Use a shell script to run both processes
+COPY start.sh start.sh
+RUN chmod +x start.sh
+
+CMD ["./start.sh"]

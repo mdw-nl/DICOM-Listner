@@ -7,3 +7,6 @@ elasticsearch
 deid
 pandas
 requests
+FastAPI
+uvicorn
+pydantic 

@@ -30,7 +30,8 @@ CREATE TABLE associations (
 CREATE_DATABASE_QUERY_3 = """
 CREATE TABLE calculation_status (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,     
-    study_uid TEXT,       
+    sop_instance_uid TEXT,
+    modality TEXT NOT NULL,    
     status BOOLEAN NOT NULL,                          
     timestamp TIMESTAMP NOT NULL          
 );"""

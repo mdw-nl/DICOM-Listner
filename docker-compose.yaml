@@ -29,6 +29,7 @@ services:
       - PYTHONUNBUFFERED=1
     ports:
       - "104:104"
+      - "8080:8080"
     networks:
       - protrait
     volumes:

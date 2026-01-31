@@ -1,0 +1,8 @@
+#!/bin/bash
+# start.sh
+
+# Start FastAPI server in background
+uvicorn dicomsorter.computation_API_handler:app --host 0.0.0.0 --port 8080 &
+
+# Start the DICOM listener in the foreground
+python main.py

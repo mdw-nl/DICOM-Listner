@@ -39,7 +39,7 @@ def get_new_sop_instance_uids(request: ModalityRequest):
     try:
         # Select SOPs not yet marked as sent, include patient_id and patient_name
         sql_query = """
-        SELECT sop_instance_uid, patient_id, patient_name
+        SELECT sop_instance_uid, study_instance_uid, patient_name
         FROM dicom_insert
         WHERE modality = %s
         AND sop_instance_uid NOT IN (
@@ -52,7 +52,7 @@ def get_new_sop_instance_uids(request: ModalityRequest):
 
         # Format results as a list of dicts
         new_sops = [
-            {"sop_instance_uid": row[0], "patient_id": row[1], "patient_name": row[2]}
+            {"sop_instance_uid": row[0], "study_instance_uid": row[1], "patient_name": row[2]}
             for row in results
         ] if results else []
 

@@ -127,7 +127,7 @@ class DicomStoreHandler:
         ds.file_meta = event.file_meta
         assoc_id = event.assoc.assoc_id
 
-        patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
+        patient_name, patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
             instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(ds)
 
         # Check if the study ID is in the uuids.txt if not dont release
@@ -146,7 +146,7 @@ class DicomStoreHandler:
         if anonymised_ds is None:
             return 0xC210  # Processing failure
         
-        patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
+        patient_name, patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
             instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(anonymised_ds)
         
         if event.assoc.patient_id is None:
@@ -159,6 +159,7 @@ class DicomStoreHandler:
         logging.info(f"[INFO] Stored {modality} file for Patient {patient_id}: {filename}")
         # filename = filename.replace("./data/", "/Users/alessioromita/Documents/data_test_docker/")
         params = (
+            patient_name, 
             patient_id,
             study_uid,
             series_uid,

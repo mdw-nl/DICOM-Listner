@@ -15,7 +15,7 @@ ENV PYTHONPATH "${PYTHONPATH}:/dicomsorter"
 RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 104
-EXPOSE 8080
+EXPOSE 9000
 
 
 # Use a shell script to run both processes

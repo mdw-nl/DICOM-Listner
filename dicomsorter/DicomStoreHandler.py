@@ -14,6 +14,7 @@ import time
 from anonymization import Anonymizer
 from .XNAThandler import DICOMtoXNAT
 
+
 class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and
      association information to the database to the database."""
@@ -29,7 +30,6 @@ class DicomStoreHandler:
 
         with open("dicomsorter/uuids.txt") as f:
             self.valid_uuids = [line.strip() for line in f if line.strip()]
-            
 
     def open_connection(self, rabbitmq_url):
         """Establish connection"""
@@ -115,11 +115,11 @@ class DicomStoreHandler:
         for uid in event.assoc.list_uid:
             patient_id = event.assoc.patient_id
             self.send_to_queue(uid)
-             
-            logging.info("Sending dicom data to XNAT")  
+
+            logging.info("Sending dicom data to XNAT")
             study_folder = os.path.join(BASE_DIR, patient_id, uid)
             self.XNATsender.run(study_folder)
-            
+
     def handle_store(self, event):
         """Receives and stores DICOM images while logging metadata to the database."""
         logging.info("Handle store ")
@@ -131,27 +131,29 @@ class DicomStoreHandler:
             instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(ds)
 
         # Check if the study ID is in the uuids.txt if not dont release
-        if study_uid not in self.valid_uuids:
-            logging.warning(
-                f"Received study UID {study_uid} which is not in the allowed list. "
-                "This C-STORE request will be rejected. AE: %s:%s",
-                event.assoc.requestor.ae_title,
-                event.assoc.requestor.address
-            )
-            return 0xC211
+        if self.valid_uuids:
+            if study_uid not in self.valid_uuids:
+                logging.warning(
+                    f"Received study UID {study_uid} which is not in the allowed list. "
+                    "This C-STORE request will be rejected. AE: %s:%s",
+                    event.assoc.requestor.ae_title,
+                    event.assoc.requestor.address
+                )
+                return 0xC211
         logging.info(f"{study_uid} is found in the expected studies.")
-        
+
         # Anonymise the data
         anonymised_ds = self.anonymizer.run(ds)
         if anonymised_ds is None:
             return 0xC210  # Processing failure
-        
+
         patient_name, patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
-            instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(anonymised_ds)
-        
+            instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(
+            anonymised_ds)
+
         if event.assoc.patient_id is None:
             event.assoc.patient_id = patient_id
-            
+
         filename = create_folder(patient_id, study_uid, modality, sop_uid)
         logging.info(f"Folder structure create. Saving in {filename}")
         anonymised_ds.save_as(filename, write_like_original=False)
@@ -159,7 +161,7 @@ class DicomStoreHandler:
         logging.info(f"[INFO] Stored {modality} file for Patient {patient_id}: {filename}")
         # filename = filename.replace("./data/", "/Users/alessioromita/Documents/data_test_docker/")
         params = (
-            patient_name, 
+            patient_name,
             patient_id,
             study_uid,
             series_uid,
@@ -181,5 +183,5 @@ class DicomStoreHandler:
         self.db.execute_query(INSERT_QUERY_DICOM_META, params)
         logging.info("Insert complete")
         logging.info(f"These are study uid element {event.assoc.list_uid}")
-              
+
         return 0x0000

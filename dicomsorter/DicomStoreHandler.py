@@ -19,17 +19,19 @@ class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and
      association information to the database to the database."""
 
-    def __init__(self, db):
+    def __init__(self, db, path_recipes):
         self.db = db
         self.ae = AE(ae_title=SCP_AE_TITLE)
         self.connection_rmq = None
         self.channel = None
         self.stop_heartbeat = threading.Event()
-        self.anonymizer = Anonymizer()
-        self.XNATsender = DICOMtoXNAT()
 
-        with open("dicomsorter/uuids.txt") as f:
-            self.valid_uuids = [line.strip() for line in f if line.strip()]
+        self.anonymizer = Anonymizer(path_files=path_recipes)
+        self.XNATsender = DICOMtoXNAT()
+        uuids_file = os.path.join(path_recipes, "uuids.txt")
+        with open(uuids_file) as f:
+            valid_uuids = [line.strip() for line in f if line.strip()]
+        self.valid_uuids = valid_uuids
 
     def open_connection(self, rabbitmq_url):
         """Establish connection"""

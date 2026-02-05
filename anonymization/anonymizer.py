@@ -13,18 +13,19 @@ from deid.config import DeidRecipe
 from pydicom.datadict import add_private_dict_entries
 import tempfile
 
-
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger()
 
+
 class Anonymizer:
 
-    def __init__(self, file_name="/recipes/variables.yaml"):
+    def __init__(self, path_files="dicomsorter/dicomsorter/recipes/"):
         # Get the private tags from the varaibles.yaml file
-        with open(file_name, 'r') as f:
+        path_var = os.path.join(path_files, "variables.yaml")
+        with open(path_var, 'r') as f:
             config_data = yaml.safe_load(f)
-            
+
         variables = config_data.get("variables", {})
         self.PatientName = variables.get("PatientName")
         self.ProfileName = variables.get("ProfileName")
@@ -32,12 +33,12 @@ class Anonymizer:
         self.TrialName = variables.get("TrialName")
         self.SiteName = variables.get("SiteName")
         self.SiteID = variables.get("SiteID")
-        
+
         # Paths to the recipes that are mounted in the digione infrastructure docker compose volumes.
-        self.recipe_path = "/recipes/recipe.dicom"
-        self.patient_lookup_csv = "/recipes/patient_lookup.csv"
+        self.recipe_path = os.path.join(path_files, "recipe.dicom")
+        self.patient_lookup_csv = os.path.join(path_files, "patient_lookup.csv")
         self.ROI_normalization_path = "/recipes/ROI_normalization.yaml"
-        
+
     @staticmethod
     def hash_func(item, value, field, dicom):
         return hashlib.md5(value.encode()).hexdigest()[:16]
@@ -45,12 +46,15 @@ class Anonymizer:
     @staticmethod
     def patient_mapping(csv_path):
         df = pd.read_csv(csv_path)
+
         def lookup(item, value, field, dicom):
             patient_id = dicom.PatientID
             matched = df.loc[df['original'] == patient_id, 'new']
             if matched.empty:
-                raise ValueError(f"PatientID: '{patient_id}' not found in patient lookup CSV. Stopping the pipeline for this patient")
+                raise ValueError(
+                    f"PatientID: '{patient_id}' not found in patient lookup CSV. Stopping the pipeline for this patient")
             return matched.values[0]
+
         return lookup
 
     @staticmethod
@@ -72,7 +76,7 @@ class Anonymizer:
         """
         Normalize ROI names in all RTSTRUCT files in the folder using the YAML mapping.
         """
-        
+
         with open(self.ROI_normalization_path) as f:
             roi_map = yaml.safe_load(f)
 
@@ -97,10 +101,10 @@ class Anonymizer:
                 logging.warning(f"No ROI map found for '{original_raw}' in RTSTRUCT dataset")
 
         return rtstruct
-        
+
     def anonymize(self, dicom_obj, recipe_path, patient_lookup_csv):
 
-    # Suppress logger output during deid processing
+        # Suppress logger output during deid processing
         self.suppress_output()
 
         try:
@@ -110,7 +114,7 @@ class Anonymizer:
 
                 # Save the in-memory dataset to a temporary file
                 dicom_obj.save_as(temp_path, write_like_original=False)
-                
+
                 items = get_identifiers([temp_path], expand_sequences=False)
 
                 for key in items:
@@ -148,15 +152,15 @@ class Anonymizer:
         dicom_obj.private_block(0x1009, 'Deid', create=True).add_new(0x01, "SH", self.SiteID)
 
         return dicom_obj
-        
-    
+
     def run(self, dicomdata):
         try:
             if dicomdata.Modality == "RTSTRUCT":
                 self.ROI_normalization(dicomdata)
 
             dicomdata = self.anonymize(dicomdata, self.recipe_path, self.patient_lookup_csv)
-
+            logger.info("Anonymization process completed.")
+            logger.debug(f"Anonymized DICOM data: {dicomdata}")
             if dicomdata is None:
                 logging.error("Anonymization failed, returning None")
                 return None
@@ -167,4 +171,3 @@ class Anonymizer:
         except Exception as e:
             logger.error(f"Error processing message in run(): {e}")
             return None
-        

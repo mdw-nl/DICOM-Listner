@@ -5,7 +5,8 @@ from dicomsorter import PostgresInterface, DicomStoreHandler, query
 from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
 from time import sleep
 import yaml
-from config_handler import Config
+from config_handler import Config, load_config_path
+
 
 BASE_DIR = "dicom_storage"
 
@@ -18,6 +19,7 @@ logger = logging.getLogger()
 
 debug_logger()
 logging.getLogger("pynetdicom").setLevel(logging.DEBUG)
+
 
 def set_up_db(config_dict_db):
     """
@@ -55,15 +57,17 @@ def set_up_db(config_dict_db):
 # Function to handle incoming DICOM images
 if __name__ == "__main__":
     # Set up the DICOM Application Entity (AE) as an SCP
+
     config_db = Config("postgres").config
     rabbitMQ_config = Config("rabbitMQ").config
-
     database = set_up_db(config_db)
-    dh = DicomStoreHandler(database)
+    path_uuids = load_config_path("recipes")
+    dh = DicomStoreHandler(database, path_uuids)
     host, port, user, pwd = rabbitMQ_config["host"], rabbitMQ_config["port"] \
         , rabbitMQ_config["username"], rabbitMQ_config["password"]
 
     connection_string = f"amqp://{user}:{pwd}@{host}:{port}/"
+
     for attempt in range(NUMBER_ATTEMPTS):
         logging.info(f"Trying connection {attempt} for RabbitMQ")
         try:
@@ -75,6 +79,7 @@ if __name__ == "__main__":
             else:
                 raise Exception(
                     f"Unable to connect to the RabbitMq after time.")
+
     dh.create_queue()
     dh.ae.supported_contexts = StoragePresentationContexts
 

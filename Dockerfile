@@ -2,9 +2,9 @@ FROM python:3.12-slim
 
 WORKDIR /dicomsorter
 
+COPY dicomsorter dicomsorter
 COPY config_handler.py config_handler.py
 COPY anonymization anonymization
-COPY dicomsorter dicomsorter
 COPY main.py main.py
 COPY Config Config
 COPY requirements.txt requirements.txt

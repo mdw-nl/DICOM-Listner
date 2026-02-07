@@ -19,7 +19,7 @@ RABBITMQ_URL = "amqp://user:password@rabbitmq:5672/"
 debug_logger()
 
 # Configuration
-DICOM_FOLDER = "/Users/alessioromita/Documents/image test"
+# DICOM_FOLDER = "/Users/alessioromita/Documents/image test"
 # Update with the folder containing DICOM files
 AE_TITLE = "MY_SCU"  # Application Entity Title of this SCU
 SCP_AE_TITLE = "MY_SCP"  # AE Title of the SCP (listener)
@@ -80,14 +80,14 @@ def callback(ch, method, properties, body):
 
 if __name__ == "__main__":
 
-    dicom_folder = "anonimised_dicomdata2"
+    dicom_folder = "DICOM_data"
     
     # if not os.path.exists(ZIP_PATH):
     #     urllib.request.urlretrieve(DICOM_URL, ZIP_PATH)
     # with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
     #     zip_ref.extractall('')
 
-    send_all_dicoms(DICOM_FOLDER)
+    send_all_dicoms(dicom_folder)
 
 
     #QUEUE_NAME = "DICOM_Processor"

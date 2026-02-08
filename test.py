@@ -80,7 +80,7 @@ def callback(ch, method, properties, body):
 
 if __name__ == "__main__":
 
-    dicom_folder = "DICOM_data"
+    dicom_folder = "anonimised_dicomdata2"
     
     # if not os.path.exists(ZIP_PATH):
     #     urllib.request.urlretrieve(DICOM_URL, ZIP_PATH)

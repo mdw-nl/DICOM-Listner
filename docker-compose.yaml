@@ -34,7 +34,7 @@ services:
       - protrait
     volumes:
       - ./associationdata:/dicomsorter/data
-      - ./recipes:/recipes
+      - ./anonymization/recipes:/recipes
 
   rabbitmq:
     image: rabbitmq:3-management

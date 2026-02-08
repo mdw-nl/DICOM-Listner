@@ -12,7 +12,6 @@ from deid.dicom import get_files, replace_identifiers, get_identifiers
 from deid.config import DeidRecipe
 from pydicom.datadict import add_private_dict_entries
 import tempfile
-from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -21,19 +20,10 @@ logger = logging.getLogger()
 
 class Anonymizer:
 
-    def __init__(self, path_files: Path = None):
-
-        path_files = Path(path_files)
-        if not path_files.exists():
-            raise FileNotFoundError(f"Recipes folder not found at {path_files}")
-
-        # Path to variables.yaml
-        path_var = path_files / "variables.yaml"
-        if not path_var.exists():
-            raise FileNotFoundError(f"variables.yaml not found at {path_var}")
-
-        # Load variables.yaml
-        with path_var.open("r") as f:
+    def __init__(self, path_files="dicomsorter/dicomsorter/recipes/"):
+        # Get the private tags from the varaibles.yaml file
+        path_var = os.path.join(path_files, "variables.yaml")
+        with open(path_var, 'r') as f:
             config_data = yaml.safe_load(f)
 
         variables = config_data.get("variables", {})
@@ -44,10 +34,10 @@ class Anonymizer:
         self.SiteName = variables.get("SiteName")
         self.SiteID = variables.get("SiteID")
 
-        # Paths to the recipe files
-        self.recipe_path = path_files / "recipe.dicom"
-        self.patient_lookup_csv = path_files / "patient_lookup.csv"
-        self.ROI_normalization_path = path_files / "ROI_normalization.yaml"
+        # Paths to the recipes that are mounted in the digione infrastructure docker compose volumes.
+        self.recipe_path = os.path.join(path_files, "recipe.dicom")
+        self.patient_lookup_csv = os.path.join(path_files, "patient_lookup.csv")
+        self.ROI_normalization_path = "/recipes/ROI_normalization.yaml"
 
     @staticmethod
     def hash_func(item, value, field, dicom):

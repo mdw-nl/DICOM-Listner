@@ -61,8 +61,8 @@ if __name__ == "__main__":
     config_db = Config("postgres").config
     rabbitMQ_config = Config("rabbitMQ").config
     database = set_up_db(config_db)
-    path_recipes = "/recipes/" 
-    dh = DicomStoreHandler(database, path_recipes)
+    path_uuids = load_config_path("recipes")
+    dh = DicomStoreHandler(database, path_uuids)
     host, port, user, pwd = rabbitMQ_config["host"], rabbitMQ_config["port"] \
         , rabbitMQ_config["username"], rabbitMQ_config["password"]
 

@@ -37,7 +37,7 @@ class Anonymizer:
         # Paths to the recipes that are mounted in the digione infrastructure docker compose volumes.
         self.recipe_path = os.path.join(path_files, "recipe.dicom")
         self.patient_lookup_csv = os.path.join(path_files, "patient_lookup.csv")
-        self.ROI_normalization_path = "/recipes/ROI_normalization.yaml"
+        self.ROI_normalization_path = os.path.join(path_files, "ROI_normalization.yaml")
 
     @staticmethod
     def hash_func(item, value, field, dicom):

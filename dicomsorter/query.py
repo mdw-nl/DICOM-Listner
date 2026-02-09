@@ -44,7 +44,7 @@ INSERT_QUERY_DICOM_META = """
     INSERT INTO dicom_insert (
         patient_name, patient_id, study_instance_uid, series_instance_uid, modality,
         sop_instance_uid, sop_class_uid, instance_number,
-        file_path, referenced_sop_class_uid, referenced_rt_plan_uid, modality_type, assoc_id
+        file_path, referenced_rt_plan_uid,referenced_sop_class_uid, modality_type, assoc_id
     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 

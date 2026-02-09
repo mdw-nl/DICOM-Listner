@@ -7,7 +7,6 @@ from time import sleep
 import yaml
 from config_handler import Config, load_config_path
 
-
 BASE_DIR = "dicom_storage"
 
 logging.basicConfig(
@@ -50,6 +49,47 @@ def set_up_db(config_dict_db):
     else:
         logger.info("Table calculation_status does not exist. Creating....")
         db.execute_query(query=query.CREATE_DATABASE_QUERY_3)
+        logger.info("Table created....")
+
+    if db.check_table_exists("dvh_result"):
+        logger.info("The 'dvh_result' table exists.")
+    else:
+        logger.info("Table dvh_result does not exist. Creating....")
+        db.create_table(
+            "dvh_result",
+            {
+                "result_id": "SERIAL PRIMARY KEY",
+                "json_id": "TEXT UNIQUE NOT NULL",  # store your ROI @id
+                "dose_bins": "DOUBLE PRECISION[] NOT NULL",
+                "volume_bins": "DOUBLE PRECISION[] NOT NULL",
+                "D2": "DOUBLE PRECISION",
+                "D50": "DOUBLE PRECISION",
+                "D95": "DOUBLE PRECISION",
+                "D98": "DOUBLE PRECISION",
+                "min_dose": "DOUBLE PRECISION",
+                "mean_dose": "DOUBLE PRECISION",
+                "max_dose": "DOUBLE PRECISION",
+                "V0": "DOUBLE PRECISION",
+                "V15": "DOUBLE PRECISION",
+                "V35": "DOUBLE PRECISION"
+            }
+        )
+
+        logger.info("Table created....")
+
+    if db.check_table_exists("dvh_package"):
+        logger.info("The 'dvh_result' table exists.")
+    else:
+        logger.info("Table dvh_package does not exist. Creating....")
+        db.create_table(
+            "dvh_package",
+            {
+                "sop_instance_uid": "TEXT NOT NULL",
+                "roi_name": "TEXT NOT NULL",
+                "result_id": "INTEGER NOT NULL REFERENCES dvh_result(result_id) ON DELETE CASCADE"
+            }
+        )
+
         logger.info("Table created....")
     return db
 

@@ -27,7 +27,8 @@ class DicomStoreHandler:
         self.stop_heartbeat = threading.Event()
 
         self.anonymizer = Anonymizer(path_files=path_recipes)
-        self.XNATsender = DICOMtoXNAT()
+        treat_file = os.path.join(path_recipes, "treatment.csv")
+        self.XNATsender = DICOMtoXNAT(treatment_path=treat_file)
         uuids_file = os.path.join(path_recipes, "uuids.txt")
         with open(uuids_file) as f:
             valid_uuids = [line.strip() for line in f if line.strip()]

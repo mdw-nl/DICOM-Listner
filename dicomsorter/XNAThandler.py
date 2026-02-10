@@ -7,22 +7,23 @@ import logging
 import time
 import zipfile
 import uuid
-
+import pandas as pd
 from .src.global_var import XNAT_USERNAME
 from .src.global_var import XNAT_PASSWORD
 from .src.global_var import XNAT_URL
 
+
 class DICOMtoXNAT:
-    def __init__(self):
+    def __init__(self, treatment_path):
         self.xnat_url = XNAT_URL
         username = XNAT_USERNAME
         password = XNAT_PASSWORD
         self.auth = HTTPBasicAuth(username, password)
-    
-        
+        self.treatment = pd.read_csv(treatment_path)
+
     def check_for_subfolders(self, folder_path: str):
         """ Checks whether a folder contains subfolders. If so, return a list of paths of the subfolders."""
-        
+
         entries = os.listdir(folder_path)
         if not entries:
             raise ValueError(f"Folder is empty: {folder_path}")
@@ -41,7 +42,7 @@ class DICOMtoXNAT:
             raise ValueError(
                 f"Folder contains both files and subfolders: {folder_path}"
             )
-            
+
         # Case 1: files exist, treat main folder as single dataset
         if has_files:
             return [folder_path]
@@ -49,68 +50,75 @@ class DICOMtoXNAT:
         # Case 2: only subfolders exist
         if subfolders:
             return subfolders
-    
+
     def checking_connectivity(self):
         """Ckecks the connection to xnat"""
         logging.info("Checking connectivity")
         connectivity = requests.get(self.xnat_url, auth=self.auth)
         logging.info(connectivity.status_code)
         return connectivity.status_code
-    
+
     def adding_treatment_site(self, treatment_sites, data_folder):
         """Hardcode the treatment sides where we want sort files in the XNAT projects"""
         try:
             logging.info("Adding a fake treatment site to the dicom files to filter the projects.")
-                   
+
             files = os.listdir(data_folder)
             for file in files:
                 if file.endswith(".dcm"):
                     file_path = os.path.join(data_folder, file)
                     ds = dcmread(file_path)
-                    treatment_site = treatment_sites[ds.PatientID]
-                    ds.BodyPartExamined  = treatment_site
+                    treatment_site = \
+                        treatment_sites.loc[treatment_sites["Patients"] == ds.PatientID]["Treatment_site"].values[0]
+                    # treatment_site = treatment_sites[ds.PatientID]
+                    ds.BodyPartExamined = treatment_site
                     ds.save_as(file_path)
-            
+
             logging.info("Added the treatment site")
         except Exception as e:
             logging.error(f"An error occurred adding the fake treatment site: {e}", exc_info=True)
-    
+
+    def read_treatment_site(self):
+        pass
+
     def dicom_to_xnat(self, data_folder):
         """Send the DICOM in a folder to XNAT"""
-        
+
         # Temporary failure codes
         retry_status_codes = {408, 429, 500, 502, 503, 504}
         max_retries = 3
         timeout_seconds = 30
-        
+
         # Create a zipfile
         first_iteration = True
         files = os.listdir(data_folder)
         if not files:
             raise ValueError(f"No files found in {data_folder}")
-                
+
         os.makedirs("zip_folder", exist_ok=True)
         zip_path = os.path.join("zip_folder", f"{uuid.uuid4()}.zip")
-        
+
         try:
             # Add the data to the zipfile
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for file in files:
                     file_path = os.path.join(data_folder, file)
-                    
+
                     if file.lower().endswith('.dcm'):
                         zipf.write(file_path, arcname=file)
-                        
+
                         if first_iteration:
                             ds = dcmread(os.path.join(data_folder, files[0]))
+                            logging.info(f"path: {file_path}")
+                            logging.info(f"Extracted from DICOM: {ds}")
                             treatment_site = ds.BodyPartExamined
                             first_iteration = False
-        
+
                     else:
-                        continue              
-                                
+                        continue
+
             upload_url = f"{self.xnat_url}/data/services/import?PROJECT_ID={treatment_site}&overwrite=append&prearchive=true&inbody=true"
-            
+
             for attempt in range(1, max_retries + 1):
                 try:
                     with open(zip_path, "rb") as f:
@@ -136,7 +144,7 @@ class DICOMtoXNAT:
                     logging.warning(
                         f"XNAT upload attempt {attempt}/{max_retries} failed "
                         f"({response.status_code}). Retrying..."
-                        )
+                    )
 
                 except requests.exceptions.Timeout:
                     logging.warning(
@@ -147,7 +155,7 @@ class DICOMtoXNAT:
                     logging.warning(
                         f"XNAT upload attempt {attempt}/{max_retries} "
                         f"connection error: {e}"
-                        )
+                    )
 
                 time.sleep(2 ** attempt)
 
@@ -157,10 +165,11 @@ class DICOMtoXNAT:
         finally:
             if os.path.exists(zip_path):
                 os.remove(zip_path)
-    
+
     def run(self, data_folder):
-        treatment_sites = {"Tom": "LUNG", "Tim": "KIDNEY"}
-        
+        ## This needs to be changed to something that can be get from the DICOM
+        treatment_sites = {"Tom": "LUNG", "Tim": "KIDNEY", "09-01810-B-M1": "PREACT"}
+
         # Check if connection to xnat works
         connection = self.checking_connectivity()
         while connection != 200:
@@ -168,15 +177,15 @@ class DICOMtoXNAT:
             time.sleep(10)
             connection = self.checking_connectivity()
 
-        logging.info("Connecting to XNAT works")         
-        
+        logging.info("Connecting to XNAT works")
+
         data_folders = self.check_for_subfolders(data_folder)
-        
+
         for data_folder in data_folders:
             try:
-                self.adding_treatment_site(treatment_sites, data_folder)        
+                self.adding_treatment_site(self.treatment, data_folder)
                 self.dicom_to_xnat(data_folder)
                 logging.info(f"Send dicom file from: {data_folder} to XNAT")
-                
+
             except Exception as e:
                 logging.error(f"An error occurred in the run method: {e}", exc_info=True)

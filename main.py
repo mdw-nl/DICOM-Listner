@@ -121,7 +121,7 @@ if __name__ == "__main__":
                     f"Unable to connect to the RabbitMq after time.")
 
     dh.create_queue()
-    dh.ae.dimse_timeout = 180
+    dh.ae.dimse_timeout = 240
     dh.ae.supported_contexts = StoragePresentationContexts
 
     # Define event handlers

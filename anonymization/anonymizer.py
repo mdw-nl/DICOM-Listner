@@ -12,10 +12,25 @@ from deid.dicom import get_files, replace_identifiers, get_identifiers
 from deid.config import DeidRecipe
 from pydicom.datadict import add_private_dict_entries
 import tempfile
+import contextlib
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger()
+
+
+@contextlib.contextmanager
+def suppress_output():
+    old_out, old_err = sys.stdout, sys.stderr
+    devnull_out = open(os.devnull, "w")
+    devnull_err = open(os.devnull, "w")
+    try:
+        sys.stdout, sys.stderr = devnull_out, devnull_err
+        yield
+    finally:
+        sys.stdout, sys.stderr = old_out, old_err
+        devnull_out.close()
+        devnull_err.close()
 
 
 class Anonymizer:
@@ -36,8 +51,32 @@ class Anonymizer:
 
         # Paths to the recipes that are mounted in the digione infrastructure docker compose volumes.
         self.recipe_path = os.path.join(path_files, "recipe.dicom")
+
         self.patient_lookup_csv = os.path.join(path_files, "patient_lookup.csv")
+        df = pd.read_csv(self.patient_lookup_csv, dtype=str)
+        self._patient_map = dict(zip(df["original"], df["new"]))
+
         self.ROI_normalization_path = os.path.join(path_files, "ROI_normalization.yaml")
+
+        with open(self.ROI_normalization_path, "r") as f:
+            roi_map = yaml.safe_load(f) or {}
+        self._compiled_roi_map = {
+            canonical: [re.compile(p, re.IGNORECASE) for p in patterns]
+            for canonical, patterns in roi_map.items()
+        }
+
+        # ✅ Load recipe ONCE
+        self._recipe = DeidRecipe(deid=self.recipe_path)
+
+        # ✅ Register private tag dict entries ONCE (global)
+        private_entries = {
+            0x10011001: ("SH", "1", "ProfileName"),
+            0x10031001: ("SH", "1", "ProjectName"),
+            0x10051001: ("SH", "1", "TrialName"),
+            0x10071001: ("SH", "1", "SiteName"),
+            0x10091001: ("SH", "1", "SiteID"),
+        }
+        add_private_dict_entries("Deid", private_entries)
 
     @staticmethod
     def hash_func(item, value, field, dicom):
@@ -62,28 +101,23 @@ class Anonymizer:
         now = datetime.now()
         return f"deid: {now.strftime('%d%m%Y:%H%M%S')}"
 
-    @staticmethod
-    def suppress_output():
-        sys.stdout = open(os.devnull, 'w')
-        sys.stderr = open(os.devnull, 'w')
 
-    @staticmethod
-    def restore_output():
-        sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__
+
+    def csv_lookup_func(self, item, value, field, dicom):
+        patient_id = getattr(dicom, "PatientID", None)
+        if patient_id is None:
+            raise ValueError("PatientID missing")
+        try:
+            return self._patient_map[patient_id]
+        except KeyError:
+            raise ValueError(f"PatientID '{patient_id}' not found in patient lookup CSV")
 
     def ROI_normalization(self, rtstruct):
         """
         Normalize ROI names in all RTSTRUCT files in the folder using the YAML mapping.
         """
 
-        with open(self.ROI_normalization_path) as f:
-            roi_map = yaml.safe_load(f)
-
-        compiled_map = {
-            canonical: [re.compile(p, re.IGNORECASE) for p in patterns]
-            for canonical, patterns in roi_map.items()
-        }
+        compiled_map = self._compiled_roi_map
 
         for roi in rtstruct.StructureSetROISequence:
             original_raw = roi.ROIName
@@ -102,12 +136,10 @@ class Anonymizer:
 
         return rtstruct
 
-    def anonymize(self, dicom_obj, recipe_path, patient_lookup_csv):
+    def anonymize(self, dicom_obj):
 
         # Suppress logger output during deid processing
-        self.suppress_output()
-
-        try:
+        with suppress_output():
             # Create a temporary folder for the DICOM file because deid does not work for in memory processing
             with tempfile.TemporaryDirectory() as tmpdir:
                 temp_path = os.path.join(tmpdir, "temp.dcm")
@@ -119,29 +151,28 @@ class Anonymizer:
 
                 for key in items:
                     items[key].update({
-                        "CSV_lookup_func": self.patient_mapping(patient_lookup_csv),
+                        "CSV_lookup_func": self.csv_lookup_func,
                         "hash_func": self.hash_func,
                         "DeIdentificationMethod": self.current_date,
                         "PatientName": self.PatientName
                     })
 
                 # Apply anonymization in-place on the temp file
-                recipe = DeidRecipe(deid=recipe_path)
-                updated = replace_identifiers(dicom_files=[temp_path], deid=recipe, ids=items)
+                # recipe = DeidRecipe(deid=recipe_path)
+                # updated = replace_identifiers(dicom_files=[temp_path], deid=recipe, ids=items)
+                updated = replace_identifiers(dicom_files=[temp_path], deid=self._recipe, ids=items)
                 dicom_obj = updated[0]
 
-        finally:
-            self.restore_output()
 
         # Add private tags definitions
-        private_entries = {
-            0x10011001: ("SH", "1", "ProfileName"),
-            0x10031001: ("SH", "1", "ProjectName"),
-            0x10051001: ("SH", "1", "TrialName"),
-            0x10071001: ("SH", "1", "SiteName"),
-            0x10091001: ("SH", "1", "SiteID"),
-        }
-        add_private_dict_entries("Deid", private_entries)
+        # private_entries = {
+        #    0x10011001: ("SH", "1", "ProfileName"),
+        #    0x10031001: ("SH", "1", "ProjectName"),
+        #    0x10051001: ("SH", "1", "TrialName"),
+        #    0x10071001: ("SH", "1", "SiteName"),
+        #    0x10091001: ("SH", "1", "SiteID"),
+        # }
+        # add_private_dict_entries("Deid", private_entries)
 
         # Update private blocks
         dicom_obj.remove_private_tags()
@@ -158,7 +189,7 @@ class Anonymizer:
             if dicomdata.Modality == "RTSTRUCT":
                 self.ROI_normalization(dicomdata)
 
-            dicomdata = self.anonymize(dicomdata, self.recipe_path, self.patient_lookup_csv)
+            dicomdata = self.anonymize(dicomdata)
             logger.info("Anonymization process completed.")
             logger.debug(f"Anonymized DICOM data: {dicomdata}")
             if dicomdata is None:

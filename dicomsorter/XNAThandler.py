@@ -12,6 +12,7 @@ from .src.global_var import XNAT_USERNAME
 from .src.global_var import XNAT_PASSWORD
 from .src.global_var import XNAT_URL
 
+logger = logging.getLogger(__name__)
 
 class DICOMtoXNAT:
     def __init__(self, treatment_path):
@@ -53,30 +54,35 @@ class DICOMtoXNAT:
 
     def checking_connectivity(self):
         """Ckecks the connection to xnat"""
-        logging.info("Checking connectivity")
+        logger.info("Checking connectivity")
         connectivity = requests.get(self.xnat_url, auth=self.auth)
-        logging.info(connectivity.status_code)
+        logger.info(connectivity.status_code)
         return connectivity.status_code
 
     def adding_treatment_site(self, treatment_sites, data_folder):
         """Hardcode the treatment sides where we want sort files in the XNAT projects"""
         try:
-            logging.info("Adding a fake treatment site to the dicom files to filter the projects.")
+            logger.info("Adding a fake treatment site to the dicom files to filter the projects.")
 
             files = os.listdir(data_folder)
             for file in files:
                 if file.endswith(".dcm"):
                     file_path = os.path.join(data_folder, file)
                     ds = dcmread(file_path)
+                    logger.info(f"Patient from DICOM: {ds.PatientID}")
+                    logger.info(f"Treatment sites from csv: {treatment_sites['Patients'].tolist()}")
                     treatment_site = \
                         treatment_sites.loc[treatment_sites["Patients"] == ds.PatientID]["Treatment_site"].values[0]
                     # treatment_site = treatment_sites[ds.PatientID]
+
                     ds.BodyPartExamined = treatment_site
+                    logger.info(
+                        f"Adding treatment site {treatment_site} to file: {file_path}. result in body {ds.BodyPartExamined}")
                     ds.save_as(file_path)
 
-            logging.info("Added the treatment site")
+            logger.info("Added the treatment site")
         except Exception as e:
-            logging.error(f"An error occurred adding the fake treatment site: {e}", exc_info=True)
+            logger.error(f"An error occurred adding the fake treatment site: {e}", exc_info=True)
 
     def read_treatment_site(self):
         pass
@@ -109,8 +115,9 @@ class DICOMtoXNAT:
 
                         if first_iteration:
                             ds = dcmread(os.path.join(data_folder, files[0]))
-                            logging.info(f"path: {file_path}")
-                            logging.info(f"Extracted from DICOM: {ds}")
+                            logger.info(f"path: {file_path}")
+                            pid= ds.get("PatientID", "Not available")
+                            logger.info(f"Extracted from DICOM: {pid}")
                             treatment_site = ds.BodyPartExamined
                             first_iteration = False
 
@@ -131,35 +138,35 @@ class DICOMtoXNAT:
                         )
 
                     if response.status_code in (200, 201):
-                        logging.info("XNAT upload succeeded")
+                        logger.info("XNAT upload succeeded")
                         return True
 
                     if response.status_code not in retry_status_codes:
-                        logging.error(
+                        logger.error(
                             f"Non-retriable XNAT error "
                             f"{response.status_code}: {response.text}"
                         )
                         return False
 
-                    logging.warning(
+                    logger.warning(
                         f"XNAT upload attempt {attempt}/{max_retries} failed "
                         f"({response.status_code}). Retrying..."
                     )
 
                 except requests.exceptions.Timeout:
-                    logging.warning(
+                    logger.warning(
                         f"XNAT upload attempt {attempt}/{max_retries} timed out"
                     )
 
                 except requests.exceptions.ConnectionError as e:
-                    logging.warning(
+                    logger.warning(
                         f"XNAT upload attempt {attempt}/{max_retries} "
                         f"connection error: {e}"
                     )
 
                 time.sleep(2 ** attempt)
 
-            logging.error("XNAT upload failed after maximum retries")
+            logger.error("XNAT upload failed after maximum retries")
             return False
 
         finally:
@@ -173,11 +180,11 @@ class DICOMtoXNAT:
         # Check if connection to xnat works
         connection = self.checking_connectivity()
         while connection != 200:
-            logging.info(f"Connectivition check failed with status code: {connection}.")
+            logger.info(f"Connectivition check failed with status code: {connection}.")
             time.sleep(10)
             connection = self.checking_connectivity()
 
-        logging.info("Connecting to XNAT works")
+        logger.info("Connecting to XNAT works")
 
         data_folders = self.check_for_subfolders(data_folder)
 
@@ -185,7 +192,7 @@ class DICOMtoXNAT:
             try:
                 self.adding_treatment_site(self.treatment, data_folder)
                 self.dicom_to_xnat(data_folder)
-                logging.info(f"Send dicom file from: {data_folder} to XNAT")
+                logger.info(f"Send dicom file from: {data_folder} to XNAT")
 
             except Exception as e:
-                logging.error(f"An error occurred in the run method: {e}", exc_info=True)
+                logger.error(f"An error occurred in the run method: {e}", exc_info=True)

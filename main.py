@@ -104,7 +104,7 @@ if __name__ == "__main__":
     rabbitMQ_config = Config("rabbitMQ").config
     database = set_up_db(config_db)
     path_recipes = load_config_path("recipes")
-    dh = DicomStoreHandler(database, path_recipes)
+    dh = DicomStoreHandler(database, path_recipes, send_to_main=True, send_to_radiomics=True)
     host, port, user, pwd = rabbitMQ_config["host"], rabbitMQ_config["port"] \
         , rabbitMQ_config["username"], rabbitMQ_config["password"]
 

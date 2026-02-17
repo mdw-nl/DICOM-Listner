@@ -14,6 +14,8 @@ import time
 from anonymization import Anonymizer
 from .XNAThandler import DICOMtoXNAT
 
+logger = logging.getLogger(__name__)
+
 
 class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and
@@ -102,7 +104,8 @@ class DicomStoreHandler:
         ae_port = event.assoc.requestor.port
         event.assoc.assoc_id = assoc_id
         event.assoc.list_uid = set()
-        event.assoc.patient_id = None
+        # event.assoc.patient_id = None
+        event.assoc.uid_pat_id = {}
 
         params = (
             assoc_id,
@@ -115,8 +118,8 @@ class DicomStoreHandler:
         self.db.execute_query(INSERT_QUERY_DICOM_ASS, params)
 
     def handle_assoc_close(self, event):
-        for uid in event.assoc.list_uid:
-            patient_id = event.assoc.patient_id
+        for uid in event.assoc.uid_pat_id:
+            patient_id = event.assoc.uid_pat_id[uid]
             self.send_to_queue(uid)
 
             logging.info("Sending dicom data to XNAT")
@@ -143,7 +146,7 @@ class DicomStoreHandler:
                     event.assoc.requestor.address
                 )
                 return 0xC211
-        logging.info(f"{study_uid} is found in the expected studies.")
+        logger.info(f"{study_uid} is found in the expected studies.")
 
         # Anonymise the data
         anonymised_ds = self.anonymizer.run(ds)
@@ -154,15 +157,15 @@ class DicomStoreHandler:
             instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(
             anonymised_ds)
 
-        if event.assoc.patient_id is None:
-            event.assoc.patient_id = patient_id
+        # if event.assoc.patient_id is None:
+        #    event.assoc.patient_id = patient_id
 
         filename = create_folder(patient_id, study_uid, modality, sop_uid)
         logging.info(f"Folder structure create. Saving in {filename}")
         anonymised_ds.save_as(filename, write_like_original=False)
 
         logging.info(f"[INFO] Stored {modality} file for Patient {patient_id}: {filename}")
-        # filename = filename.replace("./data/", "/Users/alessioromita/Documents/data_test_docker/")
+
         params = (
             patient_name,
             patient_id,
@@ -180,8 +183,8 @@ class DicomStoreHandler:
         )
         logging.info(f"Checking if {study_uid} in database before inserting into the queue and table")
 
-        event.assoc.list_uid.add(study_uid)
 
+        event.assoc.uid_pat_id[study_uid] = patient_id
         logging.info("Inserting dicom metadata into the table")
         self.db.execute_query(INSERT_QUERY_DICOM_META, params)
         logging.info("Insert complete")

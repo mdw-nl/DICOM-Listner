@@ -6,13 +6,15 @@ from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
 from time import sleep
 import yaml
 from config_handler import Config, load_config_path
+import sys
 
 BASE_DIR = "dicom_storage"
 
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()]
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
 )
 logger = logging.getLogger()
 
@@ -122,6 +124,7 @@ if __name__ == "__main__":
 
     dh.create_queue()
     dh.ae.dimse_timeout = 240
+    dh.ae.network_timeout = 120
     dh.ae.supported_contexts = StoragePresentationContexts
 
     # Define event handlers

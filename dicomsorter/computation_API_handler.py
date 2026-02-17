@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS calculation_status (
 
 
 @app.post("/sop_instance_uids")
-def get_new_sop_instance_uids(request: ModalityRequest):
+async def get_new_sop_instance_uids(request: ModalityRequest):
     modality = request.modality
 
     try:

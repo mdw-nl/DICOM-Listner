@@ -7,7 +7,7 @@ from datetime import datetime
 from .query import INSERT_QUERY_DICOM_META, INSERT_QUERY_DICOM_ASS, \
     UNIQUE_UID_SELECT
 from .src.dicom_data import return_dicom_data, create_folder
-from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, QUEUE_NAME_RADIOMCS, RABBITMQ_URL
+from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, QUEUE_NAME_RADIOMCS, RABBITMQ_URL, USE_RADIOMICS
 import pika
 import threading
 import time
@@ -21,18 +21,18 @@ class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and
      association information to the database to the database."""
 
-    def __init__(self, db, path_recipes, send_to_main=True, send_to_radiomics=True):
+    def __init__(self, db, path_recipes, send_to_main=True):
         self.db = db
         self.ae = AE(ae_title=SCP_AE_TITLE)
         self.connection_rmq = None
         self.channel = None
         self.stop_heartbeat = threading.Event()
-        
+
         # Determine which queues to send to
         self.queues = []
         if send_to_main:
             self.queues.append(QUEUE_NAME)
-        if send_to_radiomics:
+        if USE_RADIOMICS:
             self.queues.append(QUEUE_NAME_RADIOMCS)
 
         if not self.queues:
@@ -77,7 +77,6 @@ class DicomStoreHandler:
         heartbeat_thread = threading.Thread(target=self.send_heartbeats, daemon=True)
         heartbeat_thread.start()
 
-
     def send_to_queue(self, message):
         for queue in self.queues:
             self.channel.basic_publish(
@@ -87,7 +86,6 @@ class DicomStoreHandler:
                 properties=pika.BasicProperties(delivery_mode=2)
             )
         logging.info(f"Sent message to queues: {QUEUE_NAME}, {QUEUE_NAME_RADIOMCS}")
-
 
     def check_uid_db(self, study_uid):
         """
@@ -195,7 +193,6 @@ class DicomStoreHandler:
             assoc_id
         )
         logging.info(f"Checking if {study_uid} in database before inserting into the queue and table")
-
 
         event.assoc.uid_pat_id[study_uid] = patient_id
         logging.info("Inserting dicom metadata into the table")

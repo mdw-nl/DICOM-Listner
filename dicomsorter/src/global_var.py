@@ -9,7 +9,7 @@ if PROJECT_ROOT not in sys.path:
 from config_handler import Config
 
 rabbitMQ_config = Config("rabbitMQ").config
-radiomics_config = Config("radiomics").config
+
 
 user, pwd = rabbitMQ_config["username"], rabbitMQ_config["password"]
 
@@ -18,10 +18,15 @@ NUMBER_ATTEMPTS = 5
 RETRY_DELAY_IN_SECONDS = 10
 RABBITMQ_URL = f"amqp://{user}:{pwd}@rabbitmq:5672/"
 QUEUE_NAME = rabbitMQ_config["queue_name"]
-QUEUE_NAME_RADIOMCS = radiomics_config["queue_name"]
+
 BASE_DIR = os.path.join(PROJECT_ROOT, "data")  # safer absolute path
 ELASTICSEARCH_URL = "http://localhost:9200"
-
 XNAT_USERNAME = "admin"
+USE_RADIOMICS = os.getenv("USE_RADIOMICS", "").strip().lower() in ("1", "true", "yes", "y", "on")
 XNAT_PASSWORD = "admin"
 XNAT_URL = "http://xnat-nginx:80"
+if USE_RADIOMICS:
+    radiomics_config = Config("radiomics").config
+    QUEUE_NAME_RADIOMCS = radiomics_config["queue_name"]
+else:
+    QUEUE_NAME_RADIOMCS = None

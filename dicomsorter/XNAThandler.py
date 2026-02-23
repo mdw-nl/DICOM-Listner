@@ -124,7 +124,7 @@ class DICOMtoXNAT:
                     else:
                         continue
 
-            upload_url = f"{self.xnat_url}/data/services/import?PROJECT_ID={treatment_site}&overwrite=append&prearchive=true&inbody=true"
+            upload_url = f"{self.xnat_url}/data/services/import?PROJECT_ID={treatment_site}&SUBJECT_ID={pid}&overwrite=append&prearchive=true&inbody=true"
 
             for attempt in range(1, max_retries + 1):
                 try:

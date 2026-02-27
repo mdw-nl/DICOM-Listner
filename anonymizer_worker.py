@@ -105,7 +105,7 @@ def main():
     db = create_db_connection()
     recipes_path = load_config_path("recipes")
     patient_map = load_patient_mapping(db)
-    anonymizer = Anonymizer(path_files=recipes_path, patient_map_override=patient_map)
+    anonymizer = Anonymizer(path_files=recipes_path, patient_map_override=patient_map, use_csv_lookup=False)
 
     connection = None
     rabbitmq_url = build_rabbitmq_url()

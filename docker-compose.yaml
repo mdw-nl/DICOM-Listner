@@ -63,8 +63,10 @@ services:
         condition: service_healthy
     image: dicom-listner:latest
     container_name: anonymizer-worker
+    restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
+      - ANONYMIZER_DICOM_BATCH_SIZE=100
     command: ["python", "anonymizer_worker.py"]
     networks:
       - protrait

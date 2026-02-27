@@ -71,6 +71,8 @@ This is the recommended setup so all services share the same runtime/dependencie
 When anonymizer is enabled, DVH/XNAT consumers receive study UIDs only after in-place anonymization is completed.
 Because anonymization is in-place, `dicom-sorter`, `anonymizer-worker`, and `xnat-worker` should all mount the same listener storage volume (`./associationdata:/dicomsorter/data`).
 
+To reduce memory pressure in the anonymizer container, the worker processes study files in DB batches (instead of loading an entire study result set at once). You can tune batch size with `ANONYMIZER_DICOM_BATCH_SIZE` (default `100`) in `docker-compose.yaml`.
+
 RabbitMQ queues are configured in `Config/config.yaml` under `rabbitMQ`:
 - `queue_name` (anonymized output queue for DVH processing, e.g. `DICOM_Processor`)
 - `anonymizer_queue_name` (listener -> anonymizer input queue, should be different from `queue_name`)

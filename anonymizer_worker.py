@@ -1,6 +1,8 @@
+import gc
 import logging
 import os
 import sys
+from time import sleep
 
 import pika
 from pydicom import dcmread
@@ -16,7 +18,6 @@ from dicomsorter.src.global_var import (
     USE_ANONYMIZER,
     XNAT_QUEUE_NAME,
 )
-from time import sleep
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,6 +26,8 @@ logging.basicConfig(
     force=True,
 )
 logger = logging.getLogger(__name__)
+
+DICOM_BATCH_SIZE = int(os.getenv("ANONYMIZER_DICOM_BATCH_SIZE", "100"))
 
 
 def create_db_connection():
@@ -45,54 +48,83 @@ def build_rabbitmq_url():
     return f"amqp://{rabbitmq_config['username']}:{rabbitmq_config['password']}@{rabbitmq_config['host']}:{rabbitmq_config['port']}/"
 
 
-
-def load_patient_mapping(db):
+def load_patient_mapping_delta(db, last_seen_id=0):
     rows = db.fetch_all(
         """
-        SELECT original_patient_id, generated_patient_id
+        SELECT id, original_patient_id, generated_patient_id
         FROM patient_id_map
-        """
+        WHERE id > %s
+        ORDER BY id ASC
+        """,
+        (last_seen_id,),
     )
+
     if not rows:
-        return {}
-    return {row[0]: row[1] for row in rows}
+        return {}, last_seen_id
+
+    mapping = {row[1]: row[2] for row in rows}
+    latest_id = rows[-1][0]
+    return mapping, latest_id
+
+
+def iter_study_file_paths(db, study_uid: str, batch_size: int = DICOM_BATCH_SIZE):
+    last_seen_id = 0
+    while True:
+        rows = db.fetch_all(
+            """
+            SELECT id, file_path
+            FROM dicom_insert
+            WHERE study_instance_uid = %s
+              AND id > %s
+            ORDER BY id ASC
+            LIMIT %s
+            """,
+            (study_uid, last_seen_id, batch_size),
+        )
+
+        if not rows:
+            break
+
+        for row_id, dicom_path in rows:
+            last_seen_id = row_id
+            yield dicom_path
+
 
 def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
-    rows = db.fetch_all(
-        """
-        SELECT file_path
-        FROM dicom_insert
-        WHERE study_instance_uid = %s
-        """,
-        (study_uid,),
-    )
-
-    if not rows:
-        logger.warning("No DICOM rows found for study UID %s", study_uid)
-        return 0
-
     processed = 0
-    for (dicom_path,) in rows:
+
+    for dicom_path in iter_study_file_paths(db, study_uid):
         if not dicom_path or not os.path.exists(dicom_path):
             logger.warning("Skipping missing file path: %s", dicom_path)
             continue
 
-        dataset = dcmread(dicom_path)
-        anonymized_ds = anonymizer.run(dataset)
-        if anonymized_ds is None:
-            raise RuntimeError(f"Anonymization failed for {dicom_path}")
+        dataset = None
+        anonymized_ds = None
+        try:
+            dataset = dcmread(dicom_path, defer_size="1 MB")
+            anonymized_ds = anonymizer.run(dataset)
+            if anonymized_ds is None:
+                raise RuntimeError(f"Anonymization failed for {dicom_path}")
 
-        anonymized_ds.save_as(dicom_path, write_like_original=False)
-        processed += 1
+            anonymized_ds.save_as(dicom_path, write_like_original=False)
+            processed += 1
+        finally:
+            del dataset
+            del anonymized_ds
+            gc.collect()
 
-    logger.info("Anonymized %s files for study UID %s", processed, study_uid)
+    if processed == 0:
+        logger.warning("No DICOM rows found for study UID %s", study_uid)
+    else:
+        logger.info("Anonymized %s files for study UID %s", processed, study_uid)
+
     return processed
 
 
 def main():
     db = create_db_connection()
     recipes_path = load_config_path("recipes")
-    patient_map = load_patient_mapping(db)
+    patient_map, last_map_id = load_patient_mapping_delta(db)
     anonymizer = Anonymizer(path_files=recipes_path, patient_map_override=patient_map, use_csv_lookup=False)
 
     connection = None
@@ -120,10 +152,14 @@ def main():
         raise ValueError("anonymizer_queue_name must be different from queue_name to avoid queue loops")
 
     def callback(ch, method, properties, body):
+        nonlocal last_map_id
         study_uid = body.decode("utf-8").strip()
         logger.info("Received study UID for anonymization: %s", study_uid)
         try:
-            anonymizer._patient_map.update(load_patient_mapping(db))
+            mapping_delta, last_map_id = load_patient_mapping_delta(db, last_map_id)
+            if mapping_delta:
+                anonymizer._patient_map.update(mapping_delta)
+
             processed = anonymize_study(db, anonymizer, study_uid)
             if processed > 0:
                 ch.basic_publish(

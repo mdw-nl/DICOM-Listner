@@ -87,7 +87,7 @@ services:
     networks:
       - protrait
     volumes:
-      - ./anonymized_data:/dicomsorter/anonymized_data
+      - ./associationdata:/dicomsorter/data
       - ./recipes:/dicomsorter/recipes
 
 networks:

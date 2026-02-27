@@ -62,6 +62,13 @@ python anonymizer_worker.py
 python xnat_worker.py
 ```
 
+For Docker deployment, the project now uses **one shared Dockerfile** and three services in `docker-compose.yaml` with different commands:
+- `dicom-sorter` -> listener + API (`./start.sh`)
+- `anonymizer-worker` -> `python anonymizer_worker.py`
+- `xnat-worker` -> `python xnat_worker.py`
+
+This is the recommended setup so all services share the same runtime/dependencies while scaling independently.
+
 RabbitMQ queues are configured in `Config/config.yaml` under `rabbitMQ`:
 - `queue_name` (listener -> anonymizer)
 - `xnat_queue_name` (anonymizer -> xnat, optional, defaults to `DICOM_XNAT`)

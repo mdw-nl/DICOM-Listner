@@ -1,11 +1,11 @@
 postgres:
-  host: "host.docker.internal"
+  host: "postgres"
   port: "5432"
   username: "postgres"
   password: "postgres"
   db: "postgres"
 rabbitMQ:
-  host: "host.docker.internal"
+  host: "rabbitmq"
   port: "5672"
   username: "user"
   password: "password"

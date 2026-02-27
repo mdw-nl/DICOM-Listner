@@ -41,6 +41,7 @@ services:
       rabbitmq:
         condition: service_healthy
     build: .
+    image: dicom-listner:latest
     container_name: dicom-sorter
     environment:
       - PYTHONUNBUFFERED=1
@@ -60,7 +61,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    build: .
+    image: dicom-listner:latest
     container_name: anonymizer-worker
     environment:
       - PYTHONUNBUFFERED=1
@@ -77,7 +78,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    build: .
+    image: dicom-listner:latest
     container_name: xnat-worker
     environment:
       - PYTHONUNBUFFERED=1

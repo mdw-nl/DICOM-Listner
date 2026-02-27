@@ -62,7 +62,7 @@ python anonymizer_worker.py
 python xnat_worker.py
 ```
 
-For Docker deployment, the project now uses **one shared Dockerfile** and three services in `docker-compose.yaml` with different commands:
+For Docker deployment, the project now uses **one shared Dockerfile** and three services in `docker-compose.yaml` with different commands. The image is built once (`dicom-listner:latest`) and reused by all three services:
 - `dicom-sorter` -> listener + API (`./start.sh`)
 - `anonymizer-worker` -> `python anonymizer_worker.py`
 - `xnat-worker` -> `python xnat_worker.py`

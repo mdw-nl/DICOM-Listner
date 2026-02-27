@@ -3,7 +3,7 @@
 This repository contains a tool to deploy a **DICOM Listener (SCP)** which interacts with a **DICOM Sender (SCU)**. The tool uses a database (PostgreSQL) that is deployed using **Docker Compose**. 
 
 The code is structured to:
-- Run a **DICOM SCP** (Listener) using the `main.py` file. The listener stores incoming DICOMs under the configured base folder and writes metadata to PostgreSQL.
+- Run a **DICOM SCP** (Listener) using the `main.py` file. The listener stores incoming DICOMs under the configured base folder, writes metadata to PostgreSQL, and creates/uses a `patient_id_map` table to generate stable internal patient IDs.
 - Run an **anonymizer worker** (`anonymizer_worker.py`) that consumes study UIDs from RabbitMQ, reads file locations from PostgreSQL, anonymizes them, and writes anonymized copies to `anonymized_data/`.
 - Run an **XNAT worker** (`xnat_worker.py`) that consumes study UIDs from a dedicated queue and uploads anonymized studies to XNAT.
 - Simulate a **DICOM SCU** (Sender) using the `test.py` file to send DICOM files to the listener.

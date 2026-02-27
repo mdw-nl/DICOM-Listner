@@ -50,6 +50,13 @@ def set_up_db(config_dict_db):
         db.execute_query(query=query.CREATE_DATABASE_QUERY_3)
         logger.info("Table created....")
 
+    if db.check_table_exists("patient_id_map"):
+        logger.info("The 'patient_id_map' table exists.")
+    else:
+        logger.info("Table patient_id_map does not exist. Creating....")
+        db.execute_query(query=query.CREATE_DATABASE_QUERY_4)
+        logger.info("Table created....")
+
     if db.check_table_exists("dvh_result"):
         logger.info("The 'dvh_result' table exists.")
     else:

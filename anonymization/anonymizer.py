@@ -35,7 +35,7 @@ def suppress_output():
 
 class Anonymizer:
 
-    def __init__(self, path_files="dicomsorter/dicomsorter/recipes/"):
+    def __init__(self, path_files="dicomsorter/dicomsorter/recipes/", patient_map_override=None):
         # Get the private tags from the varaibles.yaml file
         path_var = os.path.join(path_files, "variables.yaml")
         with open(path_var, 'r') as f:
@@ -55,6 +55,8 @@ class Anonymizer:
         self.patient_lookup_csv = os.path.join(path_files, "patient_lookup.csv")
         df = pd.read_csv(self.patient_lookup_csv, dtype=str)
         self._patient_map = dict(zip(df["original"], df["new"]))
+        if patient_map_override:
+            self._patient_map.update(patient_map_override)
 
         self.ROI_normalization_path = os.path.join(path_files, "ROI_normalization.yaml")
 

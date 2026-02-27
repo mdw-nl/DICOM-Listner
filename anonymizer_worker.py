@@ -55,6 +55,18 @@ def build_anonymized_path(original_path: str) -> str:
     return os.path.join(ANONYMIZED_BASE_DIR, relative_path)
 
 
+
+def load_patient_mapping(db):
+    rows = db.fetch_all(
+        """
+        SELECT original_patient_id, generated_patient_id
+        FROM patient_id_map
+        """
+    )
+    if not rows:
+        return {}
+    return {row[0]: row[1] for row in rows}
+
 def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
     rows = db.fetch_all(
         """
@@ -92,7 +104,8 @@ def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
 def main():
     db = create_db_connection()
     recipes_path = load_config_path("recipes")
-    anonymizer = Anonymizer(path_files=recipes_path)
+    patient_map = load_patient_mapping(db)
+    anonymizer = Anonymizer(path_files=recipes_path, patient_map_override=patient_map)
 
     connection = None
     rabbitmq_url = build_rabbitmq_url()
@@ -115,6 +128,7 @@ def main():
         study_uid = body.decode("utf-8").strip()
         logger.info("Received study UID for anonymization: %s", study_uid)
         try:
+            anonymizer._patient_map.update(load_patient_mapping(db))
             processed = anonymize_study(db, anonymizer, study_uid)
             if processed > 0:
                 ch.basic_publish(

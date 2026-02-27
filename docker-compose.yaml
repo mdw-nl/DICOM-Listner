@@ -70,7 +70,6 @@ services:
       - protrait
     volumes:
       - ./associationdata:/dicomsorter/data
-      - ./anonymized_data:/dicomsorter/anonymized_data
       - ./recipes:/dicomsorter/recipes
 
   xnat-worker:

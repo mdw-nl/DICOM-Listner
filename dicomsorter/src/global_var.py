@@ -11,6 +11,13 @@ from config_handler import Config
 rabbitMQ_config = Config("rabbitMQ").config
 
 
+def _as_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
+
 user, pwd = rabbitMQ_config["username"], rabbitMQ_config["password"]
 
 SCP_AE_TITLE = "MY_SCP"
@@ -18,8 +25,9 @@ NUMBER_ATTEMPTS = 5
 RETRY_DELAY_IN_SECONDS = 10
 RABBITMQ_URL = f"amqp://{user}:{pwd}@rabbitmq:5672/"
 QUEUE_NAME = rabbitMQ_config["queue_name"]
-ANONYMIZER_QUEUE_NAME = rabbitMQ_config.get("anonymizer_queue_name", QUEUE_NAME)
+ANONYMIZER_QUEUE_NAME = rabbitMQ_config.get("anonymizer_queue_name", "DICOM_Anonymizer")
 XNAT_QUEUE_NAME = rabbitMQ_config.get("xnat_queue_name", "DICOM_XNAT")
+USE_ANONYMIZER = _as_bool(os.getenv("USE_ANONYMIZER"), _as_bool(rabbitMQ_config.get("use_anonymizer", True), True))
 
 BASE_DIR = os.path.join(PROJECT_ROOT, "data")  # safer absolute path
 ANONYMIZED_BASE_DIR = os.path.join(PROJECT_ROOT, "anonymized_data")

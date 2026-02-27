@@ -13,7 +13,9 @@ from dicomsorter.src.global_var import (
     ANONYMIZER_QUEUE_NAME,
     BASE_DIR,
     NUMBER_ATTEMPTS,
+    QUEUE_NAME,
     RETRY_DELAY_IN_SECONDS,
+    USE_ANONYMIZER,
     XNAT_QUEUE_NAME,
 )
 from time import sleep
@@ -121,8 +123,15 @@ def main():
 
     channel = connection.channel()
     channel.queue_declare(queue=ANONYMIZER_QUEUE_NAME, durable=True)
+    channel.queue_declare(queue=QUEUE_NAME, durable=True)
     channel.queue_declare(queue=XNAT_QUEUE_NAME, durable=True)
     channel.basic_qos(prefetch_count=1)
+
+    if not USE_ANONYMIZER:
+        logger.warning("USE_ANONYMIZER is disabled. This worker should not be running.")
+
+    if ANONYMIZER_QUEUE_NAME == QUEUE_NAME:
+        raise ValueError("anonymizer_queue_name must be different from queue_name to avoid queue loops")
 
     def callback(ch, method, properties, body):
         study_uid = body.decode("utf-8").strip()
@@ -131,6 +140,12 @@ def main():
             anonymizer._patient_map.update(load_patient_mapping(db))
             processed = anonymize_study(db, anonymizer, study_uid)
             if processed > 0:
+                ch.basic_publish(
+                    exchange="",
+                    routing_key=QUEUE_NAME,
+                    body=study_uid.encode("utf-8"),
+                    properties=pika.BasicProperties(delivery_mode=2),
+                )
                 ch.basic_publish(
                     exchange="",
                     routing_key=XNAT_QUEUE_NAME,

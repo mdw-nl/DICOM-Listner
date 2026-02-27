@@ -10,7 +10,15 @@ from pynetdicom import AE
 
 from .query import INSERT_QUERY_DICOM_META, INSERT_QUERY_DICOM_ASS
 from .src.dicom_data import return_dicom_data, create_folder
-from .src.global_var import BASE_DIR, SCP_AE_TITLE, QUEUE_NAME, QUEUE_NAME_RADIOMCS, USE_RADIOMICS
+from .src.global_var import (
+    ANONYMIZER_QUEUE_NAME,
+    BASE_DIR,
+    QUEUE_NAME,
+    QUEUE_NAME_RADIOMCS,
+    SCP_AE_TITLE,
+    USE_ANONYMIZER,
+    USE_RADIOMICS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +35,8 @@ class DicomStoreHandler:
 
         self.queues = []
         if send_to_main:
-            self.queues.append(QUEUE_NAME)
+            primary_queue = ANONYMIZER_QUEUE_NAME if USE_ANONYMIZER else QUEUE_NAME
+            self.queues.append(primary_queue)
         if USE_RADIOMICS:
             self.queues.append(QUEUE_NAME_RADIOMCS)
 
@@ -72,7 +81,7 @@ class DicomStoreHandler:
                 body=message.encode('utf-8'),
                 properties=pika.BasicProperties(delivery_mode=2)
             )
-        logging.info("Sent message to queues: %s", self.queues)
+        logging.info("Sent message to queues: %s (USE_ANONYMIZER=%s)", self.queues, USE_ANONYMIZER)
 
     def _generate_patient_id(self):
         return f"PAT-{uuid.uuid4().hex[:12].upper()}"

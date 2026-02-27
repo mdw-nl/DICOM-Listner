@@ -10,5 +10,6 @@ rabbitMQ:
   username: "user"
   password: "password"
   queue_name: "DICOM_Processor"
-  anonymizer_queue_name: "DICOM_Processor"
+  anonymizer_queue_name: "DICOM_Anonymizer"
   xnat_queue_name: "DICOM_XNAT"
+  use_anonymizer: true

@@ -69,7 +69,7 @@ For Docker deployment, the project now uses **one shared Dockerfile** and three 
 
 This is the recommended setup so all services share the same runtime/dependencies while scaling independently.
 When anonymizer is enabled, DVH/XNAT consumers receive study UIDs only after in-place anonymization is completed.
-Because anonymization is in-place, both `anonymizer-worker` and `xnat-worker` must mount the same listener storage volume (`./associationdata:/dicomsorter/data`).
+Because anonymization is in-place, `dicom-sorter`, `anonymizer-worker`, and `xnat-worker` should all mount the same listener storage volume (`./associationdata:/dicomsorter/data`).
 
 RabbitMQ queues are configured in `Config/config.yaml` under `rabbitMQ`:
 - `queue_name` (anonymized output queue for DVH processing, e.g. `DICOM_Processor`)

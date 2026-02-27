@@ -70,7 +70,8 @@ For Docker deployment, the project now uses **one shared Dockerfile** and three 
 This is the recommended setup so all services share the same runtime/dependencies while scaling independently.
 
 RabbitMQ queues are configured in `Config/config.yaml` under `rabbitMQ`:
-- `queue_name` (listener -> anonymizer)
+- `queue_name` (legacy/main queue setting)
+- `anonymizer_queue_name` (listener -> anonymizer queue)
 - `xnat_queue_name` (anonymizer -> xnat, optional, defaults to `DICOM_XNAT`)
 
 ### 4. **Sending DICOM Files (SCU)**

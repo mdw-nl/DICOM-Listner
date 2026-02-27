@@ -7,6 +7,7 @@ COPY config_handler.py config_handler.py
 COPY anonymization anonymization
 COPY main.py main.py
 COPY Config Config
+COPY recipes recipes
 COPY requirements.txt requirements.txt
 
 ENV PYTHONPATH "${PYTHONPATH}:/dicomsorter"

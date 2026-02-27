@@ -13,6 +13,7 @@ from deid.config import DeidRecipe
 from pydicom.datadict import add_private_dict_entries
 import tempfile
 import contextlib
+import gc
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -146,6 +147,8 @@ class Anonymizer:
 
                 # Save the in-memory dataset to a temporary file
                 dicom_obj.save_as(temp_path, write_like_original=False)
+                
+                del dicom_obj
 
                 items = get_identifiers([temp_path], expand_sequences=False)
 
@@ -161,7 +164,12 @@ class Anonymizer:
                 # recipe = DeidRecipe(deid=recipe_path)
                 # updated = replace_identifiers(dicom_files=[temp_path], deid=recipe, ids=items)
                 updated = replace_identifiers(dicom_files=[temp_path], deid=self._recipe, ids=items)
+                
+                del items
+                
                 dicom_obj = updated[0]
+                
+                del updated
 
 
         # Add private tags definitions
@@ -181,6 +189,8 @@ class Anonymizer:
         dicom_obj.private_block(0x1005, 'Deid', create=True).add_new(0x01, "SH", self.TrialName)
         dicom_obj.private_block(0x1007, 'Deid', create=True).add_new(0x01, "SH", self.SiteName)
         dicom_obj.private_block(0x1009, 'Deid', create=True).add_new(0x01, "SH", self.SiteID)
+        
+        gc.collect()
 
         return dicom_obj
 

@@ -123,8 +123,8 @@ if __name__ == "__main__":
                     f"Unable to connect to the RabbitMq after time.")
 
     dh.create_queue()
-    dh.ae.dimse_timeout = 240
-    dh.ae.network_timeout = 120
+    dh.ae.dimse_timeout = 600  # 10 minutes for slow processing
+    dh.ae.network_timeout = 300  # 5 minutes network idle timeout
     dh.ae.supported_contexts = StoragePresentationContexts
 
     # Define event handlers

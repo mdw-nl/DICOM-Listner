@@ -1,4 +1,5 @@
 import logging
+import threading
 
 import psycopg2
 from psycopg2 import sql
@@ -15,6 +16,7 @@ class PostgresInterface:
         self.conn = None
         self.cursor = None
         self.port = port
+        self._lock = threading.Lock()
 
     def connect(self):
         """Connect to the PostgreSQL database."""
@@ -25,7 +27,11 @@ class PostgresInterface:
                     database=self.database,
                     user=self.user,
                     password=self.password,
-                    port=self.port
+                    port=self.port,
+                    keepalives=1,
+                    keepalives_idle=30,
+                    keepalives_interval=10,
+                    keepalives_count=5
                 )
                 self.cursor = self.conn.cursor()
                 logging.info("Connection established.")
@@ -50,31 +56,40 @@ class PostgresInterface:
 
     def execute_query(self, query, params=None):
         """Execute a query (e.g., INSERT, UPDATE, DELETE)."""
-        try:
-            self.cursor.execute(query, params)
-            self.conn.commit()  # Commit changes to the database
-            logging.info("Query executed successfully.")
-        except Exception as e:
-            self.conn.rollback()  # Rollback in case of error
-            logging.warning(f"Error executing query: {e}")
+        with self._lock:
+            try:
+                self.cursor.execute(query, params)
+                self.conn.commit()
+                logging.info("Query executed successfully.")
+            except psycopg2.IntegrityError as e:
+                self.conn.rollback()
+                if "duplicate key" in str(e).lower():
+                    logging.warning(f"Duplicate entry ignored: {e}")
+                else:
+                    logging.error(f"Integrity error: {e}")
+            except Exception as e:
+                self.conn.rollback()
+                logging.warning(f"Error executing query: {e}")
 
     def fetch_all(self, query, params=None):
         """Fetch all results from a SELECT query."""
-        try:
-            self.cursor.execute(query, params)
-            return self.cursor.fetchall()
-        except Exception as e:
-            print(f"Error fetching results: {e}")
-            return None
+        with self._lock:
+            try:
+                self.cursor.execute(query, params)
+                return self.cursor.fetchall()
+            except Exception as e:
+                print(f"Error fetching results: {e}")
+                return None
 
     def fetch_one(self, query, params=None):
         """Fetch a single result from a SELECT query."""
-        try:
-            self.cursor.execute(query, params)
-            return self.cursor.fetchone()
-        except Exception as e:
-            logging.warning(f"Error fetching result: {e}")
-            return None
+        with self._lock:
+            try:
+                self.cursor.execute(query, params)
+                return self.cursor.fetchone()
+            except Exception as e:
+                logging.warning(f"Error fetching result: {e}")
+                return None
 
     def create_table(self, table_name, columns):
         """Create a table."""
@@ -104,15 +119,16 @@ class PostgresInterface:
 
     def check_table_exists(self, table_name):
         """Check if a table exists in the database."""
-        query = """
-        SELECT EXISTS (
-            SELECT 1
-            FROM information_schema.tables 
-            WHERE table_schema = 'public'
-            AND table_name = %s
-        );
-        """
-        self.cursor.execute(query, (table_name,))
-        return self.cursor.fetchone()[0]
+        with self._lock:
+            query = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = %s
+            );
+            """
+            self.cursor.execute(query, (table_name,))
+            return self.cursor.fetchone()[0]
 
 

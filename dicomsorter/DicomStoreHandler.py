@@ -4,15 +4,12 @@ from .src.global_var import BASE_DIR
 from pynetdicom import AE
 import uuid
 from datetime import datetime
-from .query import INSERT_QUERY_DICOM_META, INSERT_QUERY_DICOM_ASS, \
-    UNIQUE_UID_SELECT
+from .query import INSERT_QUERY_DICOM_META, INSERT_QUERY_DICOM_ASS
 from .src.dicom_data import return_dicom_data, create_folder
-from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, QUEUE_NAME_RADIOMCS, RABBITMQ_URL, USE_RADIOMICS
+from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, QUEUE_NAME_RADIOMCS, USE_RADIOMICS
 import pika
 import threading
 import time
-from anonymization import Anonymizer
-from .XNAThandler import DICOMtoXNAT
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +18,7 @@ class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and
      association information to the database to the database."""
 
-    def __init__(self, db, path_recipes, send_to_main=True):
+    def __init__(self, db, send_to_main=True):
         self.db = db
         self.ae = AE(ae_title=SCP_AE_TITLE)
         self.connection_rmq = None
@@ -38,10 +35,7 @@ class DicomStoreHandler:
         if not self.queues:
             raise ValueError("At least one queue must be selected for sending messages.")
 
-        self.anonymizer = Anonymizer(path_files=path_recipes)
-        treat_file = os.path.join(path_recipes, "treatment.csv")
-        self.XNATsender = DICOMtoXNAT(treatment_path=treat_file)
-        uuids_file = os.path.join(path_recipes, "uuids.txt")
+        uuids_file = os.path.join(os.path.dirname(BASE_DIR), "recipes", "uuids.txt")
         with open(uuids_file) as f:
             valid_uuids = [line.strip() for line in f if line.strip()]
         self.valid_uuids = valid_uuids
@@ -87,22 +81,6 @@ class DicomStoreHandler:
             )
         logging.info(f"Sent message to queues: {QUEUE_NAME}, {QUEUE_NAME_RADIOMCS}")
 
-    def check_uid_db(self, study_uid):
-        """
-
-        :param study_uid:
-        :return:
-        """
-        result = self.db.fetch_all(UNIQUE_UID_SELECT, params=study_uid)
-        if not result:
-            try:
-                self.send_to_queue(study_uid)
-                logging.info(f"Inserting {study_uid} in the queue")
-            except:
-                logging.warning("Inserting in the queue failed.")
-                raise
-        logging.info(f"Insertion queue complete")
-
     def handle_assoc_open(self, event):
         """
         Assigns a UUID to a new DICOM association and stores details.
@@ -130,12 +108,7 @@ class DicomStoreHandler:
 
     def handle_assoc_close(self, event):
         for uid in event.assoc.uid_pat_id:
-            patient_id = event.assoc.uid_pat_id[uid]
             self.send_to_queue(uid)
-
-            logging.info("Sending dicom data to XNAT")
-            study_folder = os.path.join(BASE_DIR, patient_id, uid)
-            self.XNATsender.run(study_folder)
 
     def handle_store(self, event):
         """Receives and stores DICOM images while logging metadata to the database."""
@@ -159,21 +132,9 @@ class DicomStoreHandler:
                 return 0xC211
         logger.info(f"{study_uid} is found in the expected studies.")
 
-        # Anonymise the data
-        anonymised_ds = self.anonymizer.run(ds)
-        if anonymised_ds is None:
-            return 0xC210  # Processing failure
-
-        patient_name, patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
-            instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(
-            anonymised_ds)
-
-        # if event.assoc.patient_id is None:
-        #    event.assoc.patient_id = patient_id
-
         filename = create_folder(patient_id, study_uid, modality, sop_uid)
         logging.info(f"Folder structure create. Saving in {filename}")
-        anonymised_ds.save_as(filename, write_like_original=False)
+        ds.save_as(filename, write_like_original=False)
 
         logging.info(f"[INFO] Stored {modality} file for Patient {patient_id}: {filename}")
 

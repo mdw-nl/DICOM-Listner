@@ -18,8 +18,11 @@ NUMBER_ATTEMPTS = 5
 RETRY_DELAY_IN_SECONDS = 10
 RABBITMQ_URL = f"amqp://{user}:{pwd}@rabbitmq:5672/"
 QUEUE_NAME = rabbitMQ_config["queue_name"]
+ANONYMIZER_QUEUE_NAME = rabbitMQ_config.get("anonymizer_queue_name", QUEUE_NAME)
+XNAT_QUEUE_NAME = rabbitMQ_config.get("xnat_queue_name", "DICOM_XNAT")
 
 BASE_DIR = os.path.join(PROJECT_ROOT, "data")  # safer absolute path
+ANONYMIZED_BASE_DIR = os.path.join(PROJECT_ROOT, "anonymized_data")
 ELASTICSEARCH_URL = "http://localhost:9200"
 XNAT_USERNAME = "admin"
 USE_RADIOMICS = os.getenv("USE_RADIOMICS", "").strip().lower() in ("1", "true", "yes", "y", "on")

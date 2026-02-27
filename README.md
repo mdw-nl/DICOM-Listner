@@ -4,7 +4,7 @@ This repository contains a tool to deploy a **DICOM Listener (SCP)** which inter
 
 The code is structured to:
 - Run a **DICOM SCP** (Listener) using the `main.py` file. The listener stores incoming DICOMs under the configured base folder, writes metadata to PostgreSQL, and creates/uses a `patient_id_map` table to generate stable internal patient IDs.
-- Run an **anonymizer worker** (`anonymizer_worker.py`) that consumes study UIDs from RabbitMQ, reads file locations from PostgreSQL, anonymizes them, and writes anonymized copies to `anonymized_data/`.
+- Run an **anonymizer worker** (`anonymizer_worker.py`) that consumes study UIDs from RabbitMQ, reads file locations from PostgreSQL, and anonymizes files **in-place** (same folder paths stored by the listener).
 - Run an **XNAT worker** (`xnat_worker.py`) that consumes study UIDs from a dedicated queue and uploads anonymized studies to XNAT.
 - Simulate a **DICOM SCU** (Sender) using the `test.py` file to send DICOM files to the listener.
   
@@ -68,6 +68,7 @@ For Docker deployment, the project now uses **one shared Dockerfile** and three 
 - `xnat-worker` -> `python xnat_worker.py`
 
 This is the recommended setup so all services share the same runtime/dependencies while scaling independently.
+When anonymizer is enabled, DVH/XNAT consumers receive study UIDs only after in-place anonymization is completed.
 
 RabbitMQ queues are configured in `Config/config.yaml` under `rabbitMQ`:
 - `queue_name` (anonymized output queue for DVH processing, e.g. `DICOM_Processor`)

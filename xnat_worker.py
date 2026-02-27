@@ -9,7 +9,7 @@ from config_handler import Config, load_config_path
 from dicomsorter import PostgresInterface
 from dicomsorter.XNAThandler import DICOMtoXNAT
 from dicomsorter.src.global_var import (
-    ANONYMIZED_BASE_DIR,
+    BASE_DIR,
     NUMBER_ATTEMPTS,
     RETRY_DELAY_IN_SECONDS,
     XNAT_QUEUE_NAME,
@@ -57,7 +57,7 @@ def resolve_study_folder(db, study_uid: str):
         return None
 
     patient_id = result[0]
-    return os.path.join(ANONYMIZED_BASE_DIR, patient_id, study_uid)
+    return os.path.join(BASE_DIR, patient_id, study_uid)
 
 
 def main():
@@ -92,7 +92,7 @@ def main():
                 return
 
             if not os.path.exists(study_folder):
-                logger.warning("Anonymized folder does not exist: %s", study_folder)
+                logger.warning("Study folder does not exist: %s", study_folder)
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
                 return
 

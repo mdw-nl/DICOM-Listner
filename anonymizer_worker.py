@@ -9,9 +9,7 @@ from anonymization import Anonymizer
 from config_handler import Config, load_config_path
 from dicomsorter import PostgresInterface
 from dicomsorter.src.global_var import (
-    ANONYMIZED_BASE_DIR,
     ANONYMIZER_QUEUE_NAME,
-    BASE_DIR,
     NUMBER_ATTEMPTS,
     QUEUE_NAME,
     RETRY_DELAY_IN_SECONDS,
@@ -45,16 +43,6 @@ def create_db_connection():
 def build_rabbitmq_url():
     rabbitmq_config = Config("rabbitMQ").config
     return f"amqp://{rabbitmq_config['username']}:{rabbitmq_config['password']}@{rabbitmq_config['host']}:{rabbitmq_config['port']}/"
-
-
-def build_anonymized_path(original_path: str) -> str:
-    normalized = os.path.normpath(original_path)
-    base_root = os.path.normpath(BASE_DIR)
-    if normalized.startswith(base_root):
-        relative_path = os.path.relpath(normalized, base_root)
-    else:
-        relative_path = os.path.basename(normalized)
-    return os.path.join(ANONYMIZED_BASE_DIR, relative_path)
 
 
 
@@ -94,9 +82,7 @@ def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
         if anonymized_ds is None:
             raise RuntimeError(f"Anonymization failed for {dicom_path}")
 
-        output_path = build_anonymized_path(dicom_path)
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        anonymized_ds.save_as(output_path, write_like_original=False)
+        anonymized_ds.save_as(dicom_path, write_like_original=False)
         processed += 1
 
     logger.info("Anonymized %s files for study UID %s", processed, study_uid)

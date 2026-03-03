@@ -15,7 +15,7 @@ from anonymization import Anonymizer
 from .XNAThandler import DICOMtoXNAT
 
 logger = logging.getLogger(__name__)
-
+pass
 
 class DicomStoreHandler:
     """Handles incoming DICOM C-STORE requests and saves metadata and

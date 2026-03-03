@@ -37,9 +37,6 @@ XNAT_SCU_AE_TITLE = xnat_config.get("scu_ae_title", "DICOM_SORTER_SCU")
 XNAT_SCP_AE_TITLE = xnat_config["ae_title"]
 XNAT_SCP_IP = xnat_config["ip"]
 XNAT_SCP_PORT = int(xnat_config["port"])
-XNAT_USERNAME = xnat_config.get("username", "admin")
-XNAT_PASSWORD = xnat_config.get("password", "admin")
-XNAT_URL = xnat_config.get("url", "http://xnat-nginx:80")
 
 USE_RADIOMICS = os.getenv("USE_RADIOMICS", "").strip().lower() in ("1", "true", "yes", "y", "on")
 if USE_RADIOMICS:

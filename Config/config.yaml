@@ -19,6 +19,3 @@ Xnat:
   ip: "xnat-nginx"
   port: "8104"
   scu_ae_title: "DICOM_SORTER_SCU"
-  username: "admin"
-  password: "admin"
-  url: "http://xnat-nginx:80"

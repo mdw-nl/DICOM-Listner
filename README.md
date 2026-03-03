@@ -85,7 +85,7 @@ XNAT SCP settings are configured in `Config/config.yaml` under `Xnat`:
 - `port` (remote XNAT SCP port)
 - `scu_ae_title` (local AE title used by this worker when opening the association)
 
-The XNAT worker now uses DICOM network send (C-STORE SCU -> SCP) and no longer uses the XNAT REST upload path.
+The XNAT worker uses DICOM network send (C-STORE SCU -> SCP).
 
 ### 4. **Sending DICOM Files (SCU)**
 

@@ -4,15 +4,22 @@ import sys
 from time import sleep
 
 import pika
+from pydicom import dcmread
+from pydicom.uid import ExplicitVRLittleEndian
+from pynetdicom import AE
+from pynetdicom.presentation import StoragePresentationContexts
 
-from config_handler import Config, load_config_path
+from config_handler import Config
 from dicomsorter import PostgresInterface
-from dicomsorter.XNAThandler import DICOMtoXNAT
 from dicomsorter.src.global_var import (
     BASE_DIR,
     NUMBER_ATTEMPTS,
     RETRY_DELAY_IN_SECONDS,
     XNAT_QUEUE_NAME,
+    XNAT_SCP_AE_TITLE,
+    XNAT_SCP_IP,
+    XNAT_SCP_PORT,
+    XNAT_SCU_AE_TITLE,
 )
 
 logging.basicConfig(
@@ -60,10 +67,45 @@ def resolve_study_folder(db, study_uid: str):
     return os.path.join(BASE_DIR, patient_id, study_uid)
 
 
+def iter_dicom_files(folder_path: str):
+    for root, _, files in os.walk(folder_path):
+        for file_name in files:
+            if file_name.lower().endswith(".dcm"):
+                yield os.path.join(root, file_name)
+
+
+def send_study_to_xnat_scp(study_folder: str) -> int:
+    ae = AE(ae_title=XNAT_SCU_AE_TITLE)
+    for context in StoragePresentationContexts:
+        ae.add_requested_context(context.abstract_syntax, ExplicitVRLittleEndian)
+
+    assoc = ae.associate(XNAT_SCP_IP, XNAT_SCP_PORT, ae_title=XNAT_SCP_AE_TITLE)
+    if not assoc.is_established:
+        raise ConnectionError(
+            f"Failed DICOM association to XNAT SCP {XNAT_SCP_IP}:{XNAT_SCP_PORT} (AE={XNAT_SCP_AE_TITLE})"
+        )
+
+    sent = 0
+    try:
+        for dicom_path in iter_dicom_files(study_folder):
+            dataset = dcmread(dicom_path)
+            status = assoc.send_c_store(dataset)
+            if not status or getattr(status, "Status", None) not in (0x0000,):
+                raise RuntimeError(
+                    f"C-STORE failed for {dicom_path}. Status={getattr(status, 'Status', None)}"
+                )
+            sent += 1
+    finally:
+        assoc.release()
+
+    if sent == 0:
+        logger.warning("No .dcm files found in study folder %s", study_folder)
+
+    return sent
+
+
 def main():
     db = create_db_connection()
-    treat_file = os.path.join(load_config_path("recipes"), "treatment.csv")
-    xnat_sender = DICOMtoXNAT(treatment_path=treat_file)
 
     connection = None
     rabbitmq_url = build_rabbitmq_url()
@@ -83,7 +125,7 @@ def main():
 
     def callback(ch, method, properties, body):
         study_uid = body.decode("utf-8").strip()
-        logger.info("Received study UID for XNAT upload: %s", study_uid)
+        logger.info("Received study UID for XNAT SCP send: %s", study_uid)
         try:
             study_folder = resolve_study_folder(db, study_uid)
             if not study_folder:
@@ -96,14 +138,21 @@ def main():
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
                 return
 
-            xnat_sender.run(study_folder)
+            sent = send_study_to_xnat_scp(study_folder)
+            logger.info("Sent %s DICOM files for study %s to XNAT SCP", sent, study_uid)
             ch.basic_ack(delivery_tag=method.delivery_tag)
         except Exception:
-            logger.exception("Failed XNAT processing for study UID %s", study_uid)
+            logger.exception("Failed XNAT SCP processing for study UID %s", study_uid)
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
     channel.basic_consume(queue=XNAT_QUEUE_NAME, on_message_callback=callback)
-    logger.info("XNAT worker started. Queue=%s", XNAT_QUEUE_NAME)
+    logger.info(
+        "XNAT worker started. Queue=%s target=%s:%s AE=%s",
+        XNAT_QUEUE_NAME,
+        XNAT_SCP_IP,
+        XNAT_SCP_PORT,
+        XNAT_SCP_AE_TITLE,
+    )
     channel.start_consuming()
 
 

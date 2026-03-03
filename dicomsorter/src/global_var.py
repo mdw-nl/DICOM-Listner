@@ -9,6 +9,7 @@ if PROJECT_ROOT not in sys.path:
 from config_handler import Config
 
 rabbitMQ_config = Config("rabbitMQ").config
+xnat_config = Config("Xnat").config
 
 
 def _as_bool(value, default=False):
@@ -32,10 +33,15 @@ USE_ANONYMIZER = _as_bool(os.getenv("USE_ANONYMIZER"), _as_bool(rabbitMQ_config.
 BASE_DIR = os.path.join(PROJECT_ROOT, "data")  # safer absolute path
 ANONYMIZED_BASE_DIR = os.path.join(PROJECT_ROOT, "anonymized_data")
 ELASTICSEARCH_URL = "http://localhost:9200"
-XNAT_USERNAME = "admin"
+XNAT_SCU_AE_TITLE = xnat_config.get("scu_ae_title", "DICOM_SORTER_SCU")
+XNAT_SCP_AE_TITLE = xnat_config["ae_title"]
+XNAT_SCP_IP = xnat_config["ip"]
+XNAT_SCP_PORT = int(xnat_config["port"])
+XNAT_USERNAME = xnat_config.get("username", "admin")
+XNAT_PASSWORD = xnat_config.get("password", "admin")
+XNAT_URL = xnat_config.get("url", "http://xnat-nginx:80")
+
 USE_RADIOMICS = os.getenv("USE_RADIOMICS", "").strip().lower() in ("1", "true", "yes", "y", "on")
-XNAT_PASSWORD = "admin"
-XNAT_URL = "http://xnat-nginx:80"
 if USE_RADIOMICS:
     radiomics_config = Config("radiomics").config
     QUEUE_NAME_RADIOMCS = radiomics_config["queue_name"]

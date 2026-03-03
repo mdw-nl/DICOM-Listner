@@ -5,7 +5,7 @@ This repository contains a tool to deploy a **DICOM Listener (SCP)** which inter
 The code is structured to:
 - Run a **DICOM SCP** (Listener) using the `main.py` file. The listener stores incoming DICOMs under the configured base folder, writes metadata to PostgreSQL, and creates/uses a `patient_id_map` table to generate stable internal patient IDs.
 - Run an **anonymizer worker** (`anonymizer_worker.py`) that consumes study UIDs from RabbitMQ, reads file locations from PostgreSQL, and anonymizes files **in-place** (same folder paths stored by the listener).
-- Run an **XNAT worker** (`xnat_worker.py`) that consumes study UIDs from a dedicated queue and uploads anonymized studies to XNAT.
+- Run an **XNAT worker** (`xnat_worker.py`) that consumes study UIDs from a dedicated queue and sends anonymized studies to an XNAT DICOM SCP (C-STORE).
 - Simulate a **DICOM SCU** (Sender) using the `test.py` file to send DICOM files to the listener.
   
 Since this is the first version, some important file paths and configurations (like the DICOM folder location to store and send files) are hardcoded into the code. These variables need to be adjusted in the code before it will function as intended.
@@ -78,6 +78,14 @@ RabbitMQ queues are configured in `Config/config.yaml` under `rabbitMQ`:
 - `anonymizer_queue_name` (listener -> anonymizer input queue, should be different from `queue_name`)
 - `xnat_queue_name` (anonymizer -> xnat queue, optional, defaults to `DICOM_XNAT`)
 - `use_anonymizer` (if `true`, listener publishes to `anonymizer_queue_name`; if `false`, listener publishes directly to `queue_name`)
+
+XNAT SCP settings are configured in `Config/config.yaml` under `Xnat`:
+- `ae_title` (remote XNAT SCP AE title)
+- `ip` (remote XNAT SCP host/IP)
+- `port` (remote XNAT SCP port)
+- `scu_ae_title` (local AE title used by this worker when opening the association)
+
+The XNAT worker now uses DICOM network send (C-STORE SCU -> SCP) and no longer uses the XNAT REST upload path.
 
 ### 4. **Sending DICOM Files (SCU)**
 

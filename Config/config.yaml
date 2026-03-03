@@ -13,3 +13,12 @@ rabbitMQ:
   anonymizer_queue_name: "DICOM_Anonymizer"
   xnat_queue_name: "DICOM_XNAT"
   use_anonymizer: true
+
+Xnat:
+  ae_title: "XNAT_SCP"
+  ip: "xnat-nginx"
+  port: "8104"
+  scu_ae_title: "DICOM_SORTER_SCU"
+  username: "admin"
+  password: "admin"
+  url: "http://xnat-nginx:80"

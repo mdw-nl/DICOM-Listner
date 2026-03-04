@@ -1,1 +1,3 @@
+from dicomsorter.DicomStoreHandler import DicomStoreHandler as DicomStoreHandler
+from dicomsorter.PostgresInterface import PostgresInterface as PostgresInterface
 from dicomsorter.query import CREATE_DATABASE_QUERY as CREATE_DATABASE_QUERY

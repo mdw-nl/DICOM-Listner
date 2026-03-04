@@ -6,7 +6,7 @@ from pynetdicom import StoragePresentationContexts, debug_logger, evt
 
 from config_handler import Config, load_config_path
 from dicomsorter import DicomStoreHandler, PostgresInterface, query
-from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
+from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS, USE_RABBITMQ
 
 BASE_DIR = "dicom_storage"
 
@@ -43,6 +43,8 @@ def set_up_db(config_dict_db):
         logger.info("Table dicom_insert does not exist. Creating....")
         db.execute_query(query=query.CREATE_DATABASE_QUERY)
         logger.info("Table created....")
+    db.execute_query(query=query.MIGRATE_ADD_RTSTRUCT_REF)
+    db.execute_query(query=query.MIGRATE_ADD_CT_SERIES_REF)
 
     if db.check_table_exists("associations"):
         logger.info("The 'associations' table exists.")
@@ -56,6 +58,8 @@ def set_up_db(config_dict_db):
         logger.info("Table calculation_status does not exist. Creating....")
         db.execute_query(query=query.CREATE_DATABASE_QUERY_3)
         logger.info("Table created....")
+    db.execute_query(query=query.MIGRATE_CALC_STATUS_SOP_UID)
+    db.execute_query(query=query.MIGRATE_CALC_STATUS_MODALITY)
 
     if db.check_table_exists("dvh_result"):
         logger.info("The 'dvh_result' table exists.")
@@ -116,20 +120,22 @@ if __name__ == "__main__":
         rabbitMQ_config["password"],
     )
 
-    connection_string = f"amqp://{user}:{pwd}@{host}:{port}/"
-
-    for attempt in range(NUMBER_ATTEMPTS):
-        logger.info("Trying connection %s for RabbitMQ", attempt)
-        try:
-            dh.open_connection(connection_string)
-        except Exception as e:
-            if attempt < NUMBER_ATTEMPTS - 1:
-                logger.info("Retrying in %s seconds...", RETRY_DELAY_IN_SECONDS)
-                sleep(RETRY_DELAY_IN_SECONDS)
-            else:
-                raise Exception("Unable to connect to the RabbitMq after time.") from e
-
-    dh.create_queue()
+    if USE_RABBITMQ:
+        connection_string = f"amqp://{user}:{pwd}@{host}:{port}/"
+        for attempt in range(NUMBER_ATTEMPTS):
+            logger.info("Trying connection %s for RabbitMQ", attempt)
+            try:
+                dh.open_connection(connection_string)
+                break
+            except Exception as e:
+                if attempt < NUMBER_ATTEMPTS - 1:
+                    logger.info("Retrying in %s seconds...", RETRY_DELAY_IN_SECONDS)
+                    sleep(RETRY_DELAY_IN_SECONDS)
+                else:
+                    raise Exception("Unable to connect to the RabbitMq after time.") from e
+        dh.create_queue()
+    else:
+        logger.info("RabbitMQ disabled (USE_RABBITMQ=false)")
     dh.ae.dimse_timeout = 600  # 10 minutes for slow processing
     dh.ae.network_timeout = 300  # 5 minutes network idle timeout
     dh.ae.supported_contexts = StoragePresentationContexts

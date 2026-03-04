@@ -13,7 +13,15 @@ from anonymization import Anonymizer
 from dicomsorter.association_tracker import AssociationTracker
 from dicomsorter.background_processor import BackgroundProcessor
 from dicomsorter.query import INSERT_QUERY_DICOM_ASS
-from dicomsorter.src.global_var import BASE_DIR, QUEUE_NAME, QUEUE_NAME_RADIOMCS, SCP_AE_TITLE, USE_RADIOMICS
+from dicomsorter.src.global_var import (
+    BASE_DIR,
+    QUEUE_NAME,
+    QUEUE_NAME_RADIOMCS,
+    SCP_AE_TITLE,
+    USE_RABBITMQ,
+    USE_RADIOMICS,
+    USE_XNAT,
+)
 from dicomsorter.XNAThandler import DICOMtoXNAT
 
 logger = logging.getLogger(__name__)
@@ -29,13 +37,11 @@ class DicomStoreHandler:
         self.stop_heartbeat = threading.Event()
 
         self.queues = []
-        if send_to_main:
-            self.queues.append(QUEUE_NAME)
-        if USE_RADIOMICS:
-            self.queues.append(QUEUE_NAME_RADIOMCS)
-
-        if not self.queues:
-            raise ValueError("At least one queue must be selected for sending messages.")
+        if USE_RABBITMQ:
+            if send_to_main:
+                self.queues.append(QUEUE_NAME)
+            if USE_RADIOMICS:
+                self.queues.append(QUEUE_NAME_RADIOMCS)
 
         self.anonymizer = Anonymizer(path_files=path_recipes)
         self.XNATsender = DICOMtoXNAT()
@@ -186,18 +192,20 @@ class DicomStoreHandler:
             return
 
         for (study_uid,) in studies:
-            try:
-                self.send_to_queue_threadsafe(study_uid)
-                logger.info("Queued study %s for patient %s", study_uid, anon_patient_id)
-            except Exception:
-                logger.exception("Failed to queue study %s", study_uid)
+            if USE_RABBITMQ:
+                try:
+                    self.send_to_queue_threadsafe(study_uid)
+                    logger.info("Queued study %s for patient %s", study_uid, anon_patient_id)
+                except Exception:
+                    logger.exception("Failed to queue study %s", study_uid)
 
-            try:
-                study_folder = str(Path(BASE_DIR) / anon_patient_id / study_uid)
-                self.XNATsender.run(study_folder)
-                logger.info("Sent study %s to XNAT", study_uid)
-            except Exception:
-                logger.exception("XNAT upload failed for study %s", study_uid)
+            if USE_XNAT:
+                try:
+                    study_folder = str(Path(BASE_DIR) / anon_patient_id / study_uid)
+                    self.XNATsender.run(study_folder)
+                    logger.info("Sent study %s to XNAT", study_uid)
+                except Exception:
+                    logger.exception("XNAT upload failed for study %s", study_uid)
 
         gc.collect()
 

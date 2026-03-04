@@ -27,6 +27,10 @@ services:
     container_name: dicom-sorter
     environment:
       - PYTHONUNBUFFERED=1
+      - USE_RABBITMQ=${USE_RABBITMQ:-true}
+      - USE_XNAT=${USE_XNAT:-true}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "104:104"
       - "9000:9000"

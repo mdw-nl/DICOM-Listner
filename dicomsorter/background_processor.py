@@ -125,6 +125,8 @@ class BackgroundProcessor:
                 modality_type,
                 referenced_rt_plan_uid,
                 referenced_sop_class_uid,
+                referenced_rtstruct_sop_uid,
+                referenced_ct_series_uid,
             ) = return_dicom_data(anonymised_ds)
 
             filename = create_folder(patient_id, study_uid, modality, sop_uid)
@@ -145,6 +147,8 @@ class BackgroundProcessor:
                 filename,
                 referenced_rt_plan_uid,
                 referenced_sop_class_uid,
+                referenced_rtstruct_sop_uid,
+                referenced_ct_series_uid,
                 modality_type,
                 inf.assoc_id,
             )

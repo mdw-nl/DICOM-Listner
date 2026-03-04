@@ -91,6 +91,9 @@ strict = true
     "T201",    # print() is intentional in CLI scripts
     "S",       # Security checks not applicable to test scripts
 ]
+"test_rt_package.py" = [
+    "T201",    # print() is intentional in CLI scripts
+]
 "Query_ES_data.py" = [
     "T201",    # print() in standalone query script
 ]

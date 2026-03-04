@@ -31,6 +31,24 @@ def return_dicom_data(ds: Dataset):
         referenced_rt_plan_seq[0].get("ReferencedSOPClassUID", "UNKNOWN") if referenced_rt_plan_seq else "UNKNOWN"
     )
 
+    referenced_rtstruct_seq = ds.get("ReferencedStructureSetSequence", [{}])
+    referenced_rtstruct_sop_uid = (
+        referenced_rtstruct_seq[0].get("ReferencedSOPInstanceUID", "UNKNOWN") if referenced_rtstruct_seq else "UNKNOWN"
+    )
+
+    referenced_ct_series_uid = "UNKNOWN"
+    for frame_ref in ds.get("ReferencedFrameOfReferenceSequence", []):
+        for study_ref in frame_ref.get("RTReferencedStudySequence", []):
+            for series_ref in study_ref.get("RTReferencedSeriesSequence", []):
+                uid = series_ref.get("SeriesInstanceUID", None)
+                if uid:
+                    referenced_ct_series_uid = str(uid)
+                    break
+            if referenced_ct_series_uid != "UNKNOWN":
+                break
+        if referenced_ct_series_uid != "UNKNOWN":
+            break
+
     return (
         patient_name,
         patient_id,
@@ -43,6 +61,8 @@ def return_dicom_data(ds: Dataset):
         modality_type,
         referenced_rt_plan_uid,
         referenced_sop_class_uid,
+        referenced_rtstruct_sop_uid,
+        referenced_ct_series_uid,
     )
 
 

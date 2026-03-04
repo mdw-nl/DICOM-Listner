@@ -73,7 +73,14 @@ def load_patient_mapping_delta(db, last_seen_id=0):
     if not rows:
         return {}, last_seen_id
 
-    mapping = {row[1]: row[2] for row in rows}
+    # Build runtime map from DB table only (no CSV):
+    # - original_patient_id -> generated_patient_id
+    # - generated_patient_id -> generated_patient_id (idempotent reprocessing)
+    mapping = {}
+    for _, original_patient_id, generated_patient_id in rows:
+        mapping[original_patient_id] = generated_patient_id
+        mapping[generated_patient_id] = generated_patient_id
+
     latest_id = rows[-1][0]
     return mapping, latest_id
 

@@ -48,6 +48,17 @@ def build_rabbitmq_url():
     return f"amqp://{rabbitmq_config['username']}:{rabbitmq_config['password']}@{rabbitmq_config['host']}:{rabbitmq_config['port']}/"
 
 
+def open_rabbitmq_connection(rabbitmq_url: str):
+    for attempt in range(NUMBER_ATTEMPTS):
+        try:
+            logger.info("Connecting to RabbitMQ, attempt %s", attempt + 1)
+            return pika.BlockingConnection(pika.URLParameters(rabbitmq_url))
+        except Exception:
+            if attempt == NUMBER_ATTEMPTS - 1:
+                raise
+            sleep(RETRY_DELAY_IN_SECONDS)
+
+
 def load_patient_mapping_delta(db, last_seen_id=0):
     rows = db.fetch_all(
         """
@@ -122,66 +133,72 @@ def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
 
 
 def main():
-    db = create_db_connection()
-    recipes_path = load_config_path("recipes")
-    patient_map, last_map_id = load_patient_mapping_delta(db)
-    anonymizer = Anonymizer(path_files=recipes_path, patient_map_override=patient_map, use_csv_lookup=False)
-
-    connection = None
-    rabbitmq_url = build_rabbitmq_url()
-    for attempt in range(NUMBER_ATTEMPTS):
-        try:
-            logger.info("Connecting to RabbitMQ, attempt %s", attempt + 1)
-            connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_url))
-            break
-        except Exception:
-            if attempt == NUMBER_ATTEMPTS - 1:
-                raise
-            sleep(RETRY_DELAY_IN_SECONDS)
-
-    channel = connection.channel()
-    channel.queue_declare(queue=ANONYMIZER_QUEUE_NAME, durable=True)
-    channel.queue_declare(queue=QUEUE_NAME, durable=True)
-    channel.queue_declare(queue=XNAT_QUEUE_NAME, durable=True)
-    channel.basic_qos(prefetch_count=1)
+    if ANONYMIZER_QUEUE_NAME == QUEUE_NAME:
+        raise ValueError("anonymizer_queue_name must be different from queue_name to avoid queue loops")
 
     if not USE_ANONYMIZER:
         logger.warning("USE_ANONYMIZER is disabled. This worker should not be running.")
 
-    if ANONYMIZER_QUEUE_NAME == QUEUE_NAME:
-        raise ValueError("anonymizer_queue_name must be different from queue_name to avoid queue loops")
+    db = create_db_connection()
+    recipes_path = load_config_path("recipes")
+    patient_map, last_map_id = load_patient_mapping_delta(db)
+    anonymizer = Anonymizer(path_files=recipes_path, patient_map_override=patient_map, use_csv_lookup=False)
+    rabbitmq_url = build_rabbitmq_url()
 
-    def callback(ch, method, properties, body):
-        nonlocal last_map_id
-        study_uid = body.decode("utf-8").strip()
-        logger.info("Received study UID for anonymization: %s", study_uid)
+    while True:
+        connection = None
         try:
-            mapping_delta, last_map_id = load_patient_mapping_delta(db, last_map_id)
-            if mapping_delta:
-                anonymizer._patient_map.update(mapping_delta)
+            connection = open_rabbitmq_connection(rabbitmq_url)
+            channel = connection.channel()
+            channel.queue_declare(queue=ANONYMIZER_QUEUE_NAME, durable=True)
+            channel.queue_declare(queue=QUEUE_NAME, durable=True)
+            channel.queue_declare(queue=XNAT_QUEUE_NAME, durable=True)
+            channel.basic_qos(prefetch_count=1)
 
-            processed = anonymize_study(db, anonymizer, study_uid)
-            if processed > 0:
-                ch.basic_publish(
-                    exchange="",
-                    routing_key=QUEUE_NAME,
-                    body=study_uid.encode("utf-8"),
-                    properties=pika.BasicProperties(delivery_mode=2),
-                )
-                ch.basic_publish(
-                    exchange="",
-                    routing_key=XNAT_QUEUE_NAME,
-                    body=study_uid.encode("utf-8"),
-                    properties=pika.BasicProperties(delivery_mode=2),
-                )
-            ch.basic_ack(delivery_tag=method.delivery_tag)
+            def callback(ch, method, properties, body):
+                nonlocal last_map_id
+                study_uid = body.decode("utf-8").strip()
+                logger.info("Received study UID for anonymization: %s", study_uid)
+                try:
+                    mapping_delta, last_map_id = load_patient_mapping_delta(db, last_map_id)
+                    if mapping_delta:
+                        anonymizer._patient_map.update(mapping_delta)
+
+                    processed = anonymize_study(db, anonymizer, study_uid)
+                    if processed > 0:
+                        ch.basic_publish(
+                            exchange="",
+                            routing_key=QUEUE_NAME,
+                            body=study_uid.encode("utf-8"),
+                            properties=pika.BasicProperties(delivery_mode=2),
+                        )
+                        ch.basic_publish(
+                            exchange="",
+                            routing_key=XNAT_QUEUE_NAME,
+                            body=study_uid.encode("utf-8"),
+                            properties=pika.BasicProperties(delivery_mode=2),
+                        )
+                    ch.basic_ack(delivery_tag=method.delivery_tag)
+                except Exception:
+                    logger.exception("Failed processing study UID %s", study_uid)
+                    try:
+                        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                    except Exception:
+                        logger.warning("Could not NACK message, channel likely disconnected.")
+                        raise
+
+            channel.basic_consume(queue=ANONYMIZER_QUEUE_NAME, on_message_callback=callback)
+            logger.info("Anonymizer worker started. Queue=%s", ANONYMIZER_QUEUE_NAME)
+            channel.start_consuming()
+        except KeyboardInterrupt:
+            logger.info("Anonymizer worker interrupted, shutting down.")
+            break
         except Exception:
-            logger.exception("Failed processing study UID %s", study_uid)
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
-
-    channel.basic_consume(queue=ANONYMIZER_QUEUE_NAME, on_message_callback=callback)
-    logger.info("Anonymizer worker started. Queue=%s", ANONYMIZER_QUEUE_NAME)
-    channel.start_consuming()
+            logger.exception("Anonymizer worker lost connection. Reconnecting in %s seconds...", RETRY_DELAY_IN_SECONDS)
+            sleep(RETRY_DELAY_IN_SECONDS)
+        finally:
+            if connection and connection.is_open:
+                connection.close()
 
 
 if __name__ == "__main__":

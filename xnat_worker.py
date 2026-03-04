@@ -49,6 +49,17 @@ def build_rabbitmq_url():
     return f"amqp://{rabbitmq_config['username']}:{rabbitmq_config['password']}@{rabbitmq_config['host']}:{rabbitmq_config['port']}/"
 
 
+def open_rabbitmq_connection(rabbitmq_url: str):
+    for attempt in range(NUMBER_ATTEMPTS):
+        try:
+            logger.info("Connecting to RabbitMQ, attempt %s", attempt + 1)
+            return pika.BlockingConnection(pika.URLParameters(rabbitmq_url))
+        except Exception:
+            if attempt == NUMBER_ATTEMPTS - 1:
+                raise
+            sleep(RETRY_DELAY_IN_SECONDS)
+
+
 def resolve_study_folder(db, study_uid: str):
     result = db.fetch_one(
         """
@@ -106,54 +117,60 @@ def send_study_to_xnat_scp(study_folder: str) -> int:
 
 def main():
     db = create_db_connection()
-
-    connection = None
     rabbitmq_url = build_rabbitmq_url()
-    for attempt in range(NUMBER_ATTEMPTS):
+
+    while True:
+        connection = None
         try:
-            logger.info("Connecting to RabbitMQ, attempt %s", attempt + 1)
-            connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_url))
+            connection = open_rabbitmq_connection(rabbitmq_url)
+            channel = connection.channel()
+            channel.queue_declare(queue=XNAT_QUEUE_NAME, durable=True)
+            channel.basic_qos(prefetch_count=1)
+
+            def callback(ch, method, properties, body):
+                study_uid = body.decode("utf-8").strip()
+                logger.info("Received study UID for XNAT SCP send: %s", study_uid)
+                try:
+                    study_folder = resolve_study_folder(db, study_uid)
+                    if not study_folder:
+                        logger.warning("No database entry found for study %s", study_uid)
+                        ch.basic_ack(delivery_tag=method.delivery_tag)
+                        return
+
+                    if not os.path.exists(study_folder):
+                        logger.warning("Study folder does not exist: %s", study_folder)
+                        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                        return
+
+                    sent = send_study_to_xnat_scp(study_folder)
+                    logger.info("Sent %s DICOM files for study %s to XNAT SCP", sent, study_uid)
+                    ch.basic_ack(delivery_tag=method.delivery_tag)
+                except Exception:
+                    logger.exception("Failed XNAT SCP processing for study UID %s", study_uid)
+                    try:
+                        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+                    except Exception:
+                        logger.warning("Could not NACK message, channel likely disconnected.")
+                        raise
+
+            channel.basic_consume(queue=XNAT_QUEUE_NAME, on_message_callback=callback)
+            logger.info(
+                "XNAT worker started. Queue=%s target=%s:%s AE=%s",
+                XNAT_QUEUE_NAME,
+                XNAT_SCP_IP,
+                XNAT_SCP_PORT,
+                XNAT_SCP_AE_TITLE,
+            )
+            channel.start_consuming()
+        except KeyboardInterrupt:
+            logger.info("XNAT worker interrupted, shutting down.")
             break
         except Exception:
-            if attempt == NUMBER_ATTEMPTS - 1:
-                raise
+            logger.exception("XNAT worker lost connection. Reconnecting in %s seconds...", RETRY_DELAY_IN_SECONDS)
             sleep(RETRY_DELAY_IN_SECONDS)
-
-    channel = connection.channel()
-    channel.queue_declare(queue=XNAT_QUEUE_NAME, durable=True)
-    channel.basic_qos(prefetch_count=1)
-
-    def callback(ch, method, properties, body):
-        study_uid = body.decode("utf-8").strip()
-        logger.info("Received study UID for XNAT SCP send: %s", study_uid)
-        try:
-            study_folder = resolve_study_folder(db, study_uid)
-            if not study_folder:
-                logger.warning("No database entry found for study %s", study_uid)
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-                return
-
-            if not os.path.exists(study_folder):
-                logger.warning("Study folder does not exist: %s", study_folder)
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
-                return
-
-            sent = send_study_to_xnat_scp(study_folder)
-            logger.info("Sent %s DICOM files for study %s to XNAT SCP", sent, study_uid)
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-        except Exception:
-            logger.exception("Failed XNAT SCP processing for study UID %s", study_uid)
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
-
-    channel.basic_consume(queue=XNAT_QUEUE_NAME, on_message_callback=callback)
-    logger.info(
-        "XNAT worker started. Queue=%s target=%s:%s AE=%s",
-        XNAT_QUEUE_NAME,
-        XNAT_SCP_IP,
-        XNAT_SCP_PORT,
-        XNAT_SCP_AE_TITLE,
-    )
-    channel.start_consuming()
+        finally:
+            if connection and connection.is_open:
+                connection.close()
 
 
 if __name__ == "__main__":

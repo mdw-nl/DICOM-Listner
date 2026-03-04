@@ -150,7 +150,7 @@ class Anonymizer:
                 temp_path = os.path.join(tmpdir, "temp.dcm")
 
                 # Save the in-memory dataset to a temporary file
-                dicom_obj.save_as(temp_path, write_like_original=False)
+                dicom_obj.save_as(temp_path, enforce_file_format=True)
 
                 items = get_identifiers([temp_path], expand_sequences=False)
 

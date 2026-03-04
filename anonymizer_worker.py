@@ -106,7 +106,7 @@ def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
             if anonymized_ds is None:
                 raise RuntimeError(f"Anonymization failed for {dicom_path}")
 
-            anonymized_ds.save_as(dicom_path, write_like_original=False)
+            anonymized_ds.save_as(dicom_path, enforce_file_format=True)
             processed += 1
         finally:
             del dataset

@@ -168,7 +168,7 @@ class DicomStoreHandler:
 
         filename = create_folder(generated_patient_id, study_uid, modality, sop_uid)
         logging.info("Folder structure created. Saving in %s", filename)
-        ds.save_as(filename, write_like_original=False)
+        ds.save_as(filename, enforce_file_format=True)
 
         params = (
             patient_name,

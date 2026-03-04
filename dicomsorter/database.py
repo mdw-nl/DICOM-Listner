@@ -4,7 +4,7 @@ from time import sleep
 
 import psycopg2
 
-from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
+from dicomsorter.settings import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,6 @@ class PostgresInterface:
         self._lock = threading.Lock()
 
     def connect(self):
-        """Connect to the PostgreSQL database."""
         for attempt in range(NUMBER_ATTEMPTS):
             try:
                 self.conn = psycopg2.connect(
@@ -47,7 +46,6 @@ class PostgresInterface:
                     raise Exception("Unable to connect to the database after time.") from e
 
     def disconnect(self):
-        """Close the connection to the database."""
         if self.cursor:
             self.cursor.close()
         if self.conn:
@@ -55,7 +53,6 @@ class PostgresInterface:
         logger.info("Connection closed.")
 
     def execute_query(self, query, params=None):
-        """Execute a query (e.g., INSERT, UPDATE, DELETE)."""
         with self._lock:
             try:
                 self.cursor.execute(query, params)
@@ -72,7 +69,6 @@ class PostgresInterface:
                 logger.warning("Error executing query: %s", e)
 
     def fetch_all(self, query, params=None):
-        """Fetch all results from a SELECT query."""
         with self._lock:
             try:
                 self.cursor.execute(query, params)
@@ -82,7 +78,6 @@ class PostgresInterface:
                 return None
 
     def fetch_one(self, query, params=None):
-        """Fetch a single result from a SELECT query."""
         with self._lock:
             try:
                 self.cursor.execute(query, params)
@@ -92,33 +87,28 @@ class PostgresInterface:
                 return None
 
     def create_table(self, table_name, columns):
-        """Create a table."""
         columns_sql = ", ".join([f"{col} {dtype}" for col, dtype in columns.items()])
         query = f"CREATE TABLE IF NOT EXISTS {table_name} ({columns_sql});"
         self.execute_query(query)
 
     def insert(self, table_name, data):
-        """Insert a new row into a table."""
         columns = ", ".join(data)
         values = ", ".join(["%s"] * len(data))
         query = f"INSERT INTO {table_name} ({columns}) VALUES ({values})"
         self.execute_query(query, tuple(data.values()))
 
     def update(self, table_name, data, where_conditions):
-        """Update a row in a table."""
         set_clause = ", ".join([f"{col} = %s" for col in data])
         where_clause = " AND ".join([f"{col} = %s" for col in where_conditions])
         query = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
         self.execute_query(query, tuple(data.values()) + tuple(where_conditions.values()))
 
     def delete(self, table_name, where_conditions):
-        """Delete rows from a table."""
         where_clause = " AND ".join([f"{col} = %s" for col in where_conditions])
         query = f"DELETE FROM {table_name} WHERE {where_clause}"
         self.execute_query(query, tuple(where_conditions.values()))
 
     def check_table_exists(self, table_name):
-        """Check if a table exists in the database."""
         with self._lock:
             query = """
             SELECT EXISTS (

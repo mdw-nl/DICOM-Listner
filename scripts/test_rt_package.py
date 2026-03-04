@@ -1,11 +1,13 @@
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
 import requests
 
-from test import send_all_dicom_files
+sys.path.insert(0, str(Path(__file__).parent))
+from send_dicom import send_all_dicom_files
 
 _MODALITIES = ["RTDOSE", "RTPLAN", "RTSTRUCT"]
 

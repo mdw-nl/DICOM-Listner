@@ -17,22 +17,41 @@ services:
       retries: 5
       start_period: 80s
 
-  dicom-sorter:
+  dicom-listener:
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     build: .
-    container_name: dicom-sorter
+    container_name: dicom-listener
+    command: uv run python main.py
     environment:
       - PYTHONUNBUFFERED=1
-      - USE_RABBITMQ=${USE_RABBITMQ:-true}
       - USE_XNAT=${USE_XNAT:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "104:104"
+    networks:
+      - protrait
+    volumes:
+      - ./associationdata:/dicomsorter/data
+      - ./anonymization/recipes:/recipes
+
+  dicom-api:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    build: .
+    container_name: dicom-api
+    command: uv run uvicorn dicomsorter.api:app --host 0.0.0.0 --port 9000
+    environment:
+      - PYTHONUNBUFFERED=1
+      - USE_RABBITMQ=false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
       - "9000:9000"
     networks:
       - protrait

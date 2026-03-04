@@ -3,7 +3,7 @@ import logging
 
 from elasticsearch import Elasticsearch
 
-from dicomsorter.src.global_var import ELASTICSEARCH_URL
+ELASTICSEARCH_URL = "http://localhost:9200"
 
 logger = logging.getLogger(__name__)
 

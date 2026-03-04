@@ -1,5 +1,5 @@
 CREATE_DATABASE_QUERY = """
-CREATE TABLE dicom_insert (
+CREATE TABLE IF NOT EXISTS dicom_insert (
     id SERIAL  PRIMARY KEY ,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     patient_name TEXT NOT NULL,
@@ -29,7 +29,7 @@ ALTER TABLE dicom_insert ADD COLUMN IF NOT EXISTS referenced_ct_series_uid TEXT;
 """
 
 CREATE_DATABASE_QUERY_2 = """
-CREATE TABLE associations (
+CREATE TABLE IF NOT EXISTS associations (
     uuid TEXT PRIMARY KEY,
     ae_title TEXT NOT NULL,
     ip_address TEXT NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE associations (
 );"""
 
 CREATE_DATABASE_QUERY_3 = """
-CREATE TABLE calculation_status (
+CREATE TABLE IF NOT EXISTS calculation_status (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     sop_instance_uid TEXT,
     modality TEXT NOT NULL,
@@ -76,3 +76,45 @@ UNIQUE_UID_SELECT = """
     SELECT EXIST(SELECT study_instance_uid FROM public.dicom_insert WHERE study_instance_uid = %s;)
     VALUES (%s);
 """
+
+CREATE_DVH_RESULT = """
+CREATE TABLE IF NOT EXISTS dvh_result (
+    result_id SERIAL PRIMARY KEY,
+    json_id TEXT UNIQUE NOT NULL,
+    dose_bins DOUBLE PRECISION[] NOT NULL,
+    volume_bins DOUBLE PRECISION[] NOT NULL,
+    "D2" DOUBLE PRECISION,
+    "D50" DOUBLE PRECISION,
+    "D95" DOUBLE PRECISION,
+    "D98" DOUBLE PRECISION,
+    min_dose DOUBLE PRECISION,
+    mean_dose DOUBLE PRECISION,
+    max_dose DOUBLE PRECISION,
+    "V0" DOUBLE PRECISION,
+    "V15" DOUBLE PRECISION,
+    "V35" DOUBLE PRECISION
+);
+"""
+
+CREATE_DVH_PACKAGE = """
+CREATE TABLE IF NOT EXISTS dvh_package (
+    sop_instance_uid TEXT NOT NULL,
+    roi_name TEXT NOT NULL,
+    result_id INTEGER NOT NULL REFERENCES dvh_result(result_id) ON DELETE CASCADE
+);
+"""
+
+TABLES = [
+    ("dicom_insert", CREATE_DATABASE_QUERY),
+    ("associations", CREATE_DATABASE_QUERY_2),
+    ("calculation_status", CREATE_DATABASE_QUERY_3),
+    ("dvh_result", CREATE_DVH_RESULT),
+    ("dvh_package", CREATE_DVH_PACKAGE),
+]
+
+MIGRATIONS = [
+    MIGRATE_ADD_RTSTRUCT_REF,
+    MIGRATE_ADD_CT_SERIES_REF,
+    MIGRATE_CALC_STATUS_SOP_UID,
+    MIGRATE_CALC_STATUS_MODALITY,
+]

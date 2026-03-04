@@ -4,7 +4,7 @@ from pathlib import Path
 from pydicom import dcmread
 from pynetdicom import AE, StoragePresentationContexts
 
-from dicomsorter.src.global_var import XNAT_SCP_AE_TITLE, XNAT_SCP_HOST, XNAT_SCP_PORT
+from dicomsorter.settings import XNAT_SCP_AE_TITLE, XNAT_SCP_HOST, XNAT_SCP_PORT
 
 logger = logging.getLogger(__name__)
 

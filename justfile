@@ -27,11 +27,11 @@ status:
 
 # Send DICOM files to the listener
 send folder="./data" host="localhost" port="104":
-    uv run --with pynetdicom --with pydicom test.py {{folder}} --host {{host}} --port {{port}}
+    uv run --with pynetdicom --with pydicom scripts/send_dicom.py {{folder}} --host {{host}} --port {{port}}
 
 # Send DICOM files with debug logging
 send-debug folder="./data" host="localhost" port="104":
-    uv run --with pynetdicom --with pydicom test.py {{folder}} --host {{host}} --port {{port}} --debug
+    uv run --with pynetdicom --with pydicom scripts/send_dicom.py {{folder}} --host {{host}} --port {{port}} --debug
 
 # Install Python dependencies
 install:

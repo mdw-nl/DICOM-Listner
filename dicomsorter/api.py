@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from config_handler import Config
-from dicomsorter import PostgresInterface
+from dicomsorter.database import PostgresInterface
 
 _NOT_SENT = "AND {alias}.sop_instance_uid NOT IN (SELECT sop_instance_uid FROM calculation_status WHERE modality = '{mod}' AND status = TRUE)"
 
@@ -51,7 +51,6 @@ class ModalityRequest(BaseModel):
 
 app = FastAPI()
 
-# Database connection
 config_dict_db = Config("postgres").config
 host, port, user, pwd, db_name = (
     config_dict_db["host"],
@@ -69,7 +68,6 @@ async def get_new_sop_instance_uids(request: ModalityRequest):
     modality = request.modality
 
     try:
-        # Select SOPs not yet marked as sent, include patient_id and patient_name
         sql_query = """
         SELECT sop_instance_uid, study_instance_uid, patient_name
         FROM dicom_insert
@@ -82,14 +80,12 @@ async def get_new_sop_instance_uids(request: ModalityRequest):
         """
         results = db.fetch_all(sql_query, (modality, modality))
 
-        # Format results as a list of dicts
         new_sops = (
             [{"sop_instance_uid": row[0], "study_instance_uid": row[1], "patient_name": row[2]} for row in results]
             if results
             else []
         )
 
-        # Mark returned SOPs as sent in calculation_status
         for sop in new_sops:
             db.execute_query(
                 """

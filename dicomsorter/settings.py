@@ -1,0 +1,28 @@
+import os
+from pathlib import Path
+
+from config_handler import Config
+
+_mq = Config("rabbitMQ").config
+
+SCP_AE_TITLE = "MY_SCP"
+NUMBER_ATTEMPTS = 5
+RETRY_DELAY_IN_SECONDS = 10
+
+BASE_DIR = str(Path(__file__).parents[1].resolve() / "data")
+
+XNAT_SCP_HOST = os.getenv("XNAT_SCP_HOST", "xnat-web")
+XNAT_SCP_PORT = int(os.getenv("XNAT_SCP_PORT", "8104"))
+XNAT_SCP_AE_TITLE = os.getenv("XNAT_SCP_AE_TITLE", "PREACT")
+
+USE_RADIOMICS = os.getenv("USE_RADIOMICS", "").strip().lower() in ("1", "true", "yes", "y", "on")
+USE_RABBITMQ = os.getenv("USE_RABBITMQ", "true").strip().lower() in ("1", "true", "yes", "y", "on")
+USE_XNAT = os.getenv("USE_XNAT", "true").strip().lower() in ("1", "true", "yes", "y", "on")
+
+QUEUE_NAME = _mq["queue_name"]
+
+if USE_RADIOMICS:
+    _radiomics = Config("radiomics").config
+    QUEUE_NAME_RADIOMCS = _radiomics["queue_name"]
+else:
+    QUEUE_NAME_RADIOMCS = None

@@ -3,13 +3,10 @@ from pathlib import Path
 from pydicom import Dataset
 from pydicom.valuerep import PersonName
 
-from dicomsorter.src.global_var import BASE_DIR
+from dicomsorter.settings import BASE_DIR
 
 
 def return_dicom_data(ds: Dataset):
-    """:param ds:
-    :return:
-    """
     patient_name = ds.PatientName if "PatientName" in ds else "UNKNOWN"
     if isinstance(patient_name, PersonName):
         patient_name = str(patient_name)
@@ -67,12 +64,6 @@ def return_dicom_data(ds: Dataset):
 
 
 def create_folder(patient_id, study_uid, modality, sop_uid):
-    """:param patient_id:
-    :param study_uid:
-    :param modality:
-    :param sop_uid:
-    :return:
-    """
     patient_folder = Path(BASE_DIR) / patient_id / study_uid / modality
     patient_folder.mkdir(parents=True, exist_ok=True)
     return str(patient_folder / f"{sop_uid}.dcm")

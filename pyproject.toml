@@ -87,12 +87,11 @@ ban-relative-imports = "all"
 strict = true
 
 [tool.ruff.lint.per-file-ignores]
-"test.py" = [
+"scripts/*.py" = [
     "T201",    # print() is intentional in CLI scripts
-    "S",       # Security checks not applicable to test scripts
-]
-"test_rt_package.py" = [
-    "T201",    # print() is intentional in CLI scripts
+    "S",       # Security checks not applicable to scripts
+    "INP001",  # Not a package
+    "E402",    # Module level import not at top of file
 ]
 "Query_ES_data.py" = [
     "T201",    # print() in standalone query script

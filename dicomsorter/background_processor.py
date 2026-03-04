@@ -8,9 +8,9 @@ from multiprocessing.pool import AsyncResult
 
 from pydicom import Dataset
 
-from anonymization import Anonymizer
-from dicomsorter.query import INSERT_QUERY_DICOM_META
-from dicomsorter.src.dicom_data import create_folder, return_dicom_data
+from dicomsorter.anonymization import Anonymizer
+from dicomsorter.dicom_data import create_folder, return_dicom_data
+from dicomsorter.queries import INSERT_QUERY_DICOM_META
 
 logger = logging.getLogger(__name__)
 

@@ -68,7 +68,7 @@ REMOVE ProtocolName
 REMOVE AcquisitionDeviceProcessingDescription
 REMOVE AcquisitionComments
 REMOVE DetectorID
-REMOVE AcquisitionProtocolDescription 
+REMOVE AcquisitionProtocolDescription
 REMOVE ContributionDescription
 REMOVE ModifyingDeviceID
 REMOVE ModifyingDeviceManufacturer
@@ -241,4 +241,3 @@ REPLACE FillerOrderNumber func:hash_func
 REPLACE StructureSetLabel func:hash_func
 REPLACE VerifyingObserverName Removed by CTP
 REPLACE PersonName Removed by CTP
-

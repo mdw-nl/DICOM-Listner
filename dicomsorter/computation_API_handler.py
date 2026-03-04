@@ -1,8 +1,10 @@
-from datetime import datetime
+from datetime import UTC, datetime
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from dicomsorter import PostgresInterface
+
 from config_handler import Config
+from dicomsorter import PostgresInterface
 
 
 class ModalityRequest(BaseModel):
@@ -54,10 +56,11 @@ async def get_new_sop_instance_uids(request: ModalityRequest):
         results = db.fetch_all(sql_query, (modality, modality))
 
         # Format results as a list of dicts
-        new_sops = [
-            {"sop_instance_uid": row[0], "study_instance_uid": row[1], "patient_name": row[2]}
-            for row in results
-        ] if results else []
+        new_sops = (
+            [{"sop_instance_uid": row[0], "study_instance_uid": row[1], "patient_name": row[2]} for row in results]
+            if results
+            else []
+        )
 
         # Mark returned SOPs as sent in calculation_status
         for sop in new_sops:
@@ -66,10 +69,10 @@ async def get_new_sop_instance_uids(request: ModalityRequest):
                 INSERT INTO calculation_status (sop_instance_uid, modality, status, timestamp)
                 VALUES (%s, %s, TRUE, %s)
                 """,
-                (sop["sop_instance_uid"], modality, datetime.utcnow())
+                (sop["sop_instance_uid"], modality, datetime.now(UTC)),
             )
 
-        return {"modality": modality, "new_sop_instances": new_sops}
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    else:
+        return {"modality": modality, "new_sop_instances": new_sops}

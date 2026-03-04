@@ -1,12 +1,12 @@
-from pydicom import dcmread
 import logging
-from pynetdicom import evt, StoragePresentationContexts, debug_logger
-from dicomsorter import PostgresInterface, DicomStoreHandler, query
-from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
-from time import sleep
-import yaml
-from config_handler import Config, load_config_path
 import sys
+from time import sleep
+
+from pynetdicom import StoragePresentationContexts, debug_logger, evt
+
+from config_handler import Config, load_config_path
+from dicomsorter import DicomStoreHandler, PostgresInterface, query
+from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
 
 BASE_DIR = "dicom_storage"
 
@@ -23,12 +23,16 @@ logging.getLogger("pynetdicom").setLevel(logging.DEBUG)
 
 
 def set_up_db(config_dict_db):
-    """
-    Establish connection to the database and check if the required tables exist of if they need to be created
+    """Establish connection to the database and check if the required tables exist of if they need to be created
     :return:
     """
-    host, port, user, pwd, db = config_dict_db["host"], config_dict_db["port"], \
-        config_dict_db["username"], config_dict_db["password"], config_dict_db["db"]
+    host, port, user, pwd, db = (
+        config_dict_db["host"],
+        config_dict_db["port"],
+        config_dict_db["username"],
+        config_dict_db["password"],
+        config_dict_db["db"],
+    )
     db = PostgresInterface(host=host, database=db, user=user, password=pwd, port=port)
     db.connect()
 
@@ -73,8 +77,8 @@ def set_up_db(config_dict_db):
                 "max_dose": "DOUBLE PRECISION",
                 "V0": "DOUBLE PRECISION",
                 "V15": "DOUBLE PRECISION",
-                "V35": "DOUBLE PRECISION"
-            }
+                "V35": "DOUBLE PRECISION",
+            },
         )
 
         logger.info("Table created....")
@@ -88,8 +92,8 @@ def set_up_db(config_dict_db):
             {
                 "sop_instance_uid": "TEXT NOT NULL",
                 "roi_name": "TEXT NOT NULL",
-                "result_id": "INTEGER NOT NULL REFERENCES dvh_result(result_id) ON DELETE CASCADE"
-            }
+                "result_id": "INTEGER NOT NULL REFERENCES dvh_result(result_id) ON DELETE CASCADE",
+            },
         )
 
         logger.info("Table created....")
@@ -105,22 +109,25 @@ if __name__ == "__main__":
     database = set_up_db(config_db)
     path_recipes = load_config_path("recipes")
     dh = DicomStoreHandler(database, path_recipes, send_to_main=True)
-    host, port, user, pwd = rabbitMQ_config["host"], rabbitMQ_config["port"] \
-        , rabbitMQ_config["username"], rabbitMQ_config["password"]
+    host, port, user, pwd = (
+        rabbitMQ_config["host"],
+        rabbitMQ_config["port"],
+        rabbitMQ_config["username"],
+        rabbitMQ_config["password"],
+    )
 
     connection_string = f"amqp://{user}:{pwd}@{host}:{port}/"
 
     for attempt in range(NUMBER_ATTEMPTS):
-        logging.info(f"Trying connection {attempt} for RabbitMQ")
+        logger.info("Trying connection %s for RabbitMQ", attempt)
         try:
             dh.open_connection(connection_string)
-        except:
+        except Exception as e:
             if attempt < NUMBER_ATTEMPTS - 1:
-                logging.info(f"Retrying in {RETRY_DELAY_IN_SECONDS} seconds...")
+                logger.info("Retrying in %s seconds...", RETRY_DELAY_IN_SECONDS)
                 sleep(RETRY_DELAY_IN_SECONDS)
             else:
-                raise Exception(
-                    f"Unable to connect to the RabbitMq after time.")
+                raise Exception("Unable to connect to the RabbitMq after time.") from e
 
     dh.create_queue()
     dh.ae.dimse_timeout = 600  # 10 minutes for slow processing
@@ -128,8 +135,11 @@ if __name__ == "__main__":
     dh.ae.supported_contexts = StoragePresentationContexts
 
     # Define event handlers
-    handlers = [(evt.EVT_C_STORE, dh.handle_store),
-                (evt.EVT_CONN_OPEN, dh.handle_assoc_open), (evt.EVT_CONN_CLOSE, dh.handle_assoc_close)]
+    handlers = [
+        (evt.EVT_C_STORE, dh.handle_store),
+        (evt.EVT_CONN_OPEN, dh.handle_assoc_open),
+        (evt.EVT_CONN_CLOSE, dh.handle_assoc_close),
+    ]
 
-    print("[INFO] Starting DICOM Listener on port 104...")
+    logger.info("Starting DICOM Listener on port 104...")
     dh.ae.start_server(("0.0.0.0", 104), block=True, evt_handlers=handlers)

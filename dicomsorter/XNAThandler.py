@@ -1,8 +1,10 @@
-import os
 import logging
+from pathlib import Path
+
 from pydicom import dcmread
 from pynetdicom import AE, StoragePresentationContexts
-from .src.global_var import XNAT_SCP_HOST, XNAT_SCP_PORT, XNAT_SCP_AE_TITLE
+
+from dicomsorter.src.global_var import XNAT_SCP_AE_TITLE, XNAT_SCP_HOST, XNAT_SCP_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -16,18 +18,18 @@ class DICOMtoXNAT:
         self.ae.requested_contexts = StoragePresentationContexts
 
     def check_for_subfolders(self, folder_path: str):
-        entries = os.listdir(folder_path)
+        folder = Path(folder_path)
+        entries = list(folder.iterdir())
         if not entries:
             raise ValueError(f"Folder is empty: {folder_path}")
 
         has_files = False
         subfolders = []
         for entry in entries:
-            full_path = os.path.join(folder_path, entry)
-            if os.path.isfile(full_path):
+            if entry.is_file():
                 has_files = True
-            elif os.path.isdir(full_path):
-                subfolders.append(full_path)
+            elif entry.is_dir():
+                subfolders.append(str(entry))
 
         if has_files and subfolders:
             raise ValueError(f"Folder contains both files and subfolders: {folder_path}")
@@ -35,26 +37,26 @@ class DICOMtoXNAT:
         return [folder_path] if has_files else subfolders
 
     def dicom_to_xnat(self, data_folder: str) -> bool:
-        files = [f for f in os.listdir(data_folder) if f.lower().endswith('.dcm')]
+        folder = Path(data_folder)
+        files = [f for f in folder.iterdir() if f.suffix.lower() == ".dcm"]
         if not files:
             raise ValueError(f"No DICOM files found in {data_folder}")
 
         assoc = self.ae.associate(self.host, self.port, ae_title=self.ae_title)
         if not assoc.is_established:
-            logger.error(f"Failed to associate with XNAT SCP at {self.host}:{self.port}")
+            logger.error("Failed to associate with XNAT SCP at %s:%s", self.host, self.port)
             return False
 
         errors = 0
         try:
-            for filename in files:
-                file_path = os.path.join(data_folder, filename)
-                ds = dcmread(file_path)
+            for file_path in files:
+                ds = dcmread(str(file_path))
                 status = assoc.send_c_store(ds)
                 del ds
                 if status and status.Status == 0x0000:
-                    logger.debug(f"C-STORE succeeded: {filename}")
+                    logger.debug("C-STORE succeeded: %s", file_path.name)
                 else:
-                    logger.error(f"C-STORE failed for {filename}: status={status}")
+                    logger.error("C-STORE failed for %s: status=%s", file_path.name, status)
                     errors += 1
         finally:
             assoc.release()
@@ -62,7 +64,7 @@ class DICOMtoXNAT:
         if errors == 0:
             logger.info("XNAT upload succeeded")
             return True
-        logger.error(f"XNAT upload finished with {errors} errors")
+        logger.error("XNAT upload finished with %s errors", errors)
         return False
 
     def run(self, data_folder: str):
@@ -71,8 +73,8 @@ class DICOMtoXNAT:
             try:
                 success = self.dicom_to_xnat(folder)
                 if success:
-                    logger.info(f"Sent DICOM files from {folder} to XNAT")
+                    logger.info("Sent DICOM files from %s to XNAT", folder)
                 else:
-                    logger.error(f"XNAT upload failed for {folder}")
+                    logger.error("XNAT upload failed for %s", folder)
             except Exception:
-                logger.exception(f"XNAT upload failed for {folder}")
+                logger.exception("XNAT upload failed for %s", folder)

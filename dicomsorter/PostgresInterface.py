@@ -1,14 +1,16 @@
 import logging
 import threading
+from time import sleep
 
 import psycopg2
-from psycopg2 import sql
-from .src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
-from time import sleep
+
+from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
+
+logger = logging.getLogger(__name__)
 
 
 class PostgresInterface:
-    def __init__(self, host, database, user, password,port):
+    def __init__(self, host, database, user, password, port):
         self.host = host
         self.database = database
         self.user = user
@@ -31,20 +33,18 @@ class PostgresInterface:
                     keepalives=1,
                     keepalives_idle=30,
                     keepalives_interval=10,
-                    keepalives_count=5
+                    keepalives_count=5,
                 )
                 self.cursor = self.conn.cursor()
-                logging.info("Connection established.")
+                logger.info("Connection established.")
                 break
             except psycopg2.OperationalError as e:
                 if attempt < NUMBER_ATTEMPTS - 1:
-                    logging.warning(f"{e}")
-                    logging.info(f"Retrying in {RETRY_DELAY_IN_SECONDS} seconds...")
+                    logger.warning("%s", e)
+                    logger.info("Retrying in %s seconds...", RETRY_DELAY_IN_SECONDS)
                     sleep(RETRY_DELAY_IN_SECONDS)
                 else:
-
-                    raise Exception(
-                        f"Unable to connect to the database after time.")
+                    raise Exception("Unable to connect to the database after time.") from e
 
     def disconnect(self):
         """Close the connection to the database."""
@@ -52,7 +52,7 @@ class PostgresInterface:
             self.cursor.close()
         if self.conn:
             self.conn.close()
-        logging.info("Connection closed.")
+        logger.info("Connection closed.")
 
     def execute_query(self, query, params=None):
         """Execute a query (e.g., INSERT, UPDATE, DELETE)."""
@@ -60,16 +60,16 @@ class PostgresInterface:
             try:
                 self.cursor.execute(query, params)
                 self.conn.commit()
-                logging.info("Query executed successfully.")
+                logger.info("Query executed successfully.")
             except psycopg2.IntegrityError as e:
                 self.conn.rollback()
                 if "duplicate key" in str(e).lower():
-                    logging.warning(f"Duplicate entry ignored: {e}")
+                    logger.warning("Duplicate entry ignored: %s", e)
                 else:
-                    logging.error(f"Integrity error: {e}")
+                    logger.exception("Integrity error")
             except Exception as e:
                 self.conn.rollback()
-                logging.warning(f"Error executing query: {e}")
+                logger.warning("Error executing query: %s", e)
 
     def fetch_all(self, query, params=None):
         """Fetch all results from a SELECT query."""
@@ -78,7 +78,7 @@ class PostgresInterface:
                 self.cursor.execute(query, params)
                 return self.cursor.fetchall()
             except Exception as e:
-                print(f"Error fetching results: {e}")
+                logger.warning("Error fetching results: %s", e)
                 return None
 
     def fetch_one(self, query, params=None):
@@ -88,7 +88,7 @@ class PostgresInterface:
                 self.cursor.execute(query, params)
                 return self.cursor.fetchone()
             except Exception as e:
-                logging.warning(f"Error fetching result: {e}")
+                logger.warning("Error fetching result: %s", e)
                 return None
 
     def create_table(self, table_name, columns):
@@ -99,21 +99,21 @@ class PostgresInterface:
 
     def insert(self, table_name, data):
         """Insert a new row into a table."""
-        columns = ", ".join(data.keys())
+        columns = ", ".join(data)
         values = ", ".join(["%s"] * len(data))
         query = f"INSERT INTO {table_name} ({columns}) VALUES ({values})"
         self.execute_query(query, tuple(data.values()))
 
     def update(self, table_name, data, where_conditions):
         """Update a row in a table."""
-        set_clause = ", ".join([f"{col} = %s" for col in data.keys()])
-        where_clause = " AND ".join([f"{col} = %s" for col in where_conditions.keys()])
+        set_clause = ", ".join([f"{col} = %s" for col in data])
+        where_clause = " AND ".join([f"{col} = %s" for col in where_conditions])
         query = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
         self.execute_query(query, tuple(data.values()) + tuple(where_conditions.values()))
 
     def delete(self, table_name, where_conditions):
         """Delete rows from a table."""
-        where_clause = " AND ".join([f"{col} = %s" for col in where_conditions.keys()])
+        where_clause = " AND ".join([f"{col} = %s" for col in where_conditions])
         query = f"DELETE FROM {table_name} WHERE {where_clause}"
         self.execute_query(query, tuple(where_conditions.values()))
 
@@ -130,5 +130,3 @@ class PostgresInterface:
             """
             self.cursor.execute(query, (table_name,))
             return self.cursor.fetchone()[0]
-
-

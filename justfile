@@ -48,6 +48,10 @@ sync:
 test:
     uv run pytest
 
+# Run pre-commit hooks on all files
+lint:
+    uv run pre-commit run --all-files
+
 # Check RabbitMQ queue
 check-queue:
     @echo "RabbitMQ Management UI: http://localhost:15672"

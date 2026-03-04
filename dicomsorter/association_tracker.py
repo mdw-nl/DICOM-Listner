@@ -38,13 +38,13 @@ class AssociationTracker:
     def register(self, assoc_id: str):
         with self._global_lock:
             self._associations[assoc_id] = AssociationState()
-        logger.debug(f"Tracker: registered association {assoc_id}")
+        logger.debug("Tracker: registered association %s", assoc_id)
 
     def record_file(self, assoc_id: str, patient_id: str | None):
         with self._global_lock:
             state = self._associations.get(assoc_id)
         if state is None:
-            logger.error(f"Tracker: unknown association {assoc_id}")
+            logger.error("Tracker: unknown association %s", assoc_id)
             return
         with state.lock:
             state.expected_count += 1
@@ -56,23 +56,30 @@ class AssociationTracker:
                         old_pstate = state.patient_states.get(old_patient)
                         if old_pstate is not None and not old_pstate.reception_complete:
                             old_pstate.reception_complete = True
-                            logger.debug(f"Tracker: {assoc_id}/{old_patient} reception complete (patient boundary)")
+                            logger.debug(
+                                "Tracker: %s/%s reception complete (patient boundary)",
+                                assoc_id,
+                                old_patient,
+                            )
                             self._check_patient_complete(assoc_id, old_patient, old_pstate)
                 if patient_id not in state.patient_states:
                     state.patient_states[patient_id] = PatientState()
                 state.patient_states[patient_id].expected_count += 1
-            logger.debug(f"Tracker: {assoc_id} expected={state.expected_count}")
+            logger.debug("Tracker: %s expected=%s", assoc_id, state.expected_count)
 
     def record_processed(self, assoc_id: str, patient_id: str | None = None):
         with self._global_lock:
             state = self._associations.get(assoc_id)
         if state is None:
-            logger.error(f"Tracker: unknown association {assoc_id}")
+            logger.error("Tracker: unknown association %s", assoc_id)
             return
         with state.lock:
             state.processed_count += 1
             logger.debug(
-                f"Tracker: {assoc_id} processed={state.processed_count}/{state.expected_count}"
+                "Tracker: %s processed=%s/%s",
+                assoc_id,
+                state.processed_count,
+                state.expected_count,
             )
             if patient_id is not None:
                 patient_state = state.patient_states.get(patient_id)
@@ -85,12 +92,15 @@ class AssociationTracker:
         with self._global_lock:
             state = self._associations.get(assoc_id)
         if state is None:
-            logger.error(f"Tracker: unknown association {assoc_id}")
+            logger.error("Tracker: unknown association %s", assoc_id)
             return
         with state.lock:
             state.error_count += 1
             logger.debug(
-                f"Tracker: {assoc_id} errors={state.error_count}/{state.expected_count}"
+                "Tracker: %s errors=%s/%s",
+                assoc_id,
+                state.error_count,
+                state.expected_count,
             )
             if patient_id is not None:
                 patient_state = state.patient_states.get(patient_id)
@@ -103,17 +113,21 @@ class AssociationTracker:
         with self._global_lock:
             state = self._associations.get(assoc_id)
         if state is None:
-            logger.error(f"Tracker: unknown association {assoc_id}")
+            logger.error("Tracker: unknown association %s", assoc_id)
             return
         with state.lock:
             state.closed = True
-            logger.debug(f"Tracker: {assoc_id} marked closed")
+            logger.debug("Tracker: %s marked closed", assoc_id)
             current = state.current_patient_id
             if current is not None:
                 patient_state = state.patient_states.get(current)
                 if patient_state is not None and not patient_state.reception_complete:
                     patient_state.reception_complete = True
-                    logger.debug(f"Tracker: {assoc_id}/{current} reception complete (association closed)")
+                    logger.debug(
+                        "Tracker: %s/%s reception complete (association closed)",
+                        assoc_id,
+                        current,
+                    )
                     self._check_patient_complete(assoc_id, current, patient_state)
             self._check_complete(assoc_id, state)
 
@@ -125,24 +139,25 @@ class AssociationTracker:
         ):
             patient_state.completed = True
             logger.info(
-                f"Tracker: {assoc_id}/{patient_id} patient complete — "
-                f"processed={patient_state.processed_count}, errors={patient_state.error_count}, "
-                f"expected={patient_state.expected_count}"
+                "Tracker: %s/%s patient complete — processed=%s, errors=%s, expected=%s",
+                assoc_id,
+                patient_id,
+                patient_state.processed_count,
+                patient_state.error_count,
+                patient_state.expected_count,
             )
             if self._on_patient_complete is not None:
                 self._completion_pool.submit(self._run_patient_callback, assoc_id, patient_id)
 
     def _check_complete(self, assoc_id: str, state: AssociationState):
-        if (
-            state.closed
-            and state.processed_count + state.error_count >= state.expected_count
-            and not state.completed
-        ):
+        if state.closed and state.processed_count + state.error_count >= state.expected_count and not state.completed:
             state.completed = True
             logger.info(
-                f"Tracker: {assoc_id} complete — "
-                f"processed={state.processed_count}, errors={state.error_count}, "
-                f"expected={state.expected_count}"
+                "Tracker: %s complete — processed=%s, errors=%s, expected=%s",
+                assoc_id,
+                state.processed_count,
+                state.error_count,
+                state.expected_count,
             )
             with self._global_lock:
                 self._associations.pop(assoc_id, None)
@@ -152,13 +167,13 @@ class AssociationTracker:
         try:
             self._on_complete(assoc_id, state)
         except Exception:
-            logger.exception(f"Tracker: on_complete callback failed for {assoc_id}")
+            logger.exception("Tracker: on_complete callback failed for %s", assoc_id)
 
     def _run_patient_callback(self, assoc_id: str, patient_id: str):
         try:
             self._on_patient_complete(assoc_id, patient_id)
         except Exception:
-            logger.exception(f"Tracker: on_patient_complete callback failed for {assoc_id}/{patient_id}")
+            logger.exception("Tracker: on_patient_complete callback failed for %s/%s", assoc_id, patient_id)
 
     def shutdown(self, wait=True):
         self._completion_pool.shutdown(wait=wait)

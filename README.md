@@ -1,11 +1,11 @@
 # DICOM Listener Tool
 
-This repository contains a tool to deploy a **DICOM Listener (SCP)** which interacts with a **DICOM Sender (SCU)**. The tool uses a database (PostgreSQL) that is deployed using **Docker Compose**. 
+This repository contains a tool to deploy a **DICOM Listener (SCP)** which interacts with a **DICOM Sender (SCU)**. The tool uses a database (PostgreSQL) that is deployed using **Docker Compose**.
 
 The code is structured to:
 - Run a **DICOM SCP** (Listener) using the `main.py` file.
 - Simulate a **DICOM SCU** (Sender) using the `test.py` file to send DICOM files to the listener.
-  
+
 Since this is the first version, some important file paths and configurations (like the DICOM folder location to store and send files) are hardcoded into the code. These variables need to be adjusted in the code before it will function as intended.
 
 ## Prerequisites
@@ -59,7 +59,7 @@ To run the SCU:
 
 1. Edit the `test.py` file and adjust the following variables to your needs:
     - **DICOM_FOLDER:** Specify the path to the folder containing the DICOM files you want to send.
-  
+
 2. Run the sender:
     ```bash
     python test.py
@@ -80,4 +80,3 @@ To make the tool work in your environment, **please edit these paths in the code
 ## Structure
 
 The codebase is structured as follows:
-

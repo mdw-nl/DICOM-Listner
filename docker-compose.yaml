@@ -77,4 +77,3 @@ services:
 networks:
   protrait:
     driver: bridge
-

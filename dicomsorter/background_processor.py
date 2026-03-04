@@ -9,8 +9,8 @@ from multiprocessing.pool import AsyncResult
 from pydicom import Dataset
 
 from anonymization import Anonymizer
-from .src.dicom_data import return_dicom_data, create_folder
-from .query import INSERT_QUERY_DICOM_META
+from dicomsorter.query import INSERT_QUERY_DICOM_META
+from dicomsorter.src.dicom_data import create_folder, return_dicom_data
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ QUEUE_MAX_SIZE = 50
 _POOL_MAX_WORKERS = 4
 _WORKER_MAX_TASKS = 50
 
-_mp_context = multiprocessing.get_context('fork')
+_mp_context = multiprocessing.get_context("fork")
 
 _worker_anonymizer: Anonymizer | None = None
 
@@ -34,7 +34,7 @@ def _anonymize_in_worker(ds: Dataset) -> Dataset | None:
 
 @dataclass
 class WorkItem:
-    ds: Dataset
+    ds: Dataset | None
     assoc_id: str
     original_patient_id: str | None = None
     pixel_data: bytes | None = None
@@ -71,65 +71,87 @@ class BackgroundProcessor:
         )
 
     def enqueue(self, ds: Dataset, assoc_id: str):
-        original_patient_id = getattr(ds, 'PatientID', None)
+        original_patient_id = getattr(ds, "PatientID", None)
         pixel_data = None
-        if hasattr(ds, 'PixelData'):
+        if hasattr(ds, "PixelData"):
             pixel_data = ds.PixelData
             del ds.PixelData
         item = WorkItem(ds=ds, assoc_id=assoc_id, original_patient_id=original_patient_id, pixel_data=pixel_data)
         self._queue.put(item)
-        logger.debug(f"Enqueued work item for assoc {assoc_id}, queue size ~{self._queue.qsize()}")
+        logger.debug("Enqueued work item for assoc %s, queue size ~%s", assoc_id, self._queue.qsize())
 
     def _submit_item(self, item: WorkItem, in_flight: deque):
         patient_id = item.original_patient_id
         if patient_id is None or not self._anonymizer.is_patient_known(patient_id):
             sop_uid = getattr(item.ds, "SOPInstanceUID", "UNKNOWN")
-            logger.error(f"PatientID '{patient_id}' not in lookup CSV, rejecting SOP {sop_uid}")
+            logger.error("PatientID '%s' not in lookup CSV, rejecting SOP %s", patient_id, sop_uid)
             self._tracker.record_error(item.assoc_id, patient_id)
             return
         sop_uid = getattr(item.ds, "SOPInstanceUID", "UNKNOWN")
         future = self._pool.apply_async(_anonymize_in_worker, (item.ds,))
         item.ds = None
-        in_flight.append(_InFlightItem(
-            future=future,
-            assoc_id=item.assoc_id,
-            original_patient_id=patient_id,
-            pixel_data=item.pixel_data,
-            sop_uid=sop_uid,
-        ))
+        in_flight.append(
+            _InFlightItem(
+                future=future,
+                assoc_id=item.assoc_id,
+                original_patient_id=patient_id,
+                pixel_data=item.pixel_data,
+                sop_uid=sop_uid,
+            )
+        )
 
     def _collect_one(self, in_flight: deque):
         inf = in_flight.popleft()
         try:
             anonymised_ds = inf.future.get()
             if anonymised_ds is None:
-                logger.error(f"Anonymization failed for SOP {inf.sop_uid}")
+                logger.error("Anonymization failed for SOP %s", inf.sop_uid)
                 raise RuntimeError("Anonymization returned None")
 
             if inf.pixel_data is not None:
                 anonymised_ds.PixelData = inf.pixel_data
-                anonymised_ds['PixelData'].VR = 'OW'
+                anonymised_ds["PixelData"].VR = "OW"
                 inf.pixel_data = None
 
-            patient_name, patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
-                instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(
-                anonymised_ds)
+            (
+                patient_name,
+                patient_id,
+                study_uid,
+                series_uid,
+                modality,
+                sop_uid,
+                sop_class_uid,
+                instance_number,
+                modality_type,
+                referenced_rt_plan_uid,
+                referenced_sop_class_uid,
+            ) = return_dicom_data(anonymised_ds)
 
             filename = create_folder(patient_id, study_uid, modality, sop_uid)
             anonymised_ds.save_as(filename, write_like_original=False)
-            logger.info(f"Stored {modality} file for patient {patient_id}: {filename}")
+            logger.info("Stored %s file for patient %s: %s", modality, patient_id, filename)
 
             del anonymised_ds
 
             params = (
-                patient_name, patient_id, study_uid, series_uid, modality,
-                sop_uid, sop_class_uid, instance_number, filename,
-                referenced_rt_plan_uid, referenced_sop_class_uid, modality_type, inf.assoc_id
+                patient_name,
+                patient_id,
+                study_uid,
+                series_uid,
+                modality,
+                sop_uid,
+                sop_class_uid,
+                instance_number,
+                filename,
+                referenced_rt_plan_uid,
+                referenced_sop_class_uid,
+                modality_type,
+                inf.assoc_id,
             )
             self._db.execute_query(INSERT_QUERY_DICOM_META, params)
             self._tracker.record_processed(inf.assoc_id, inf.original_patient_id)
         except Exception:
-            logger.exception(f"Worker failed processing item for assoc {inf.assoc_id}")
+            logger.exception("Worker failed processing item for assoc %s", inf.assoc_id)
             self._tracker.record_error(inf.assoc_id, inf.original_patient_id)
         finally:
             del inf

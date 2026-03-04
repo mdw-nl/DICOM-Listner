@@ -1,4 +1,3 @@
-
 CREATE_DATABASE_QUERY = """
 CREATE TABLE dicom_insert (
     id SERIAL  PRIMARY KEY ,
@@ -21,23 +20,20 @@ CREATE TABLE dicom_insert (
 
 CREATE_DATABASE_QUERY_2 = """
 CREATE TABLE associations (
-    uuid TEXT PRIMARY KEY,               
-    ae_title TEXT NOT NULL,              
-    ip_address TEXT NOT NULL,            
-    port INTEGER NOT NULL,               
-    timestamp TIMESTAMP NOT NULL          
+    uuid TEXT PRIMARY KEY,
+    ae_title TEXT NOT NULL,
+    ip_address TEXT NOT NULL,
+    port INTEGER NOT NULL,
+    timestamp TIMESTAMP NOT NULL
 );"""
 
 CREATE_DATABASE_QUERY_3 = """
 CREATE TABLE calculation_status (
-    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,     
-    study_uid TEXT,       
-    status BOOLEAN NOT NULL,                          
-    timestamp TIMESTAMP NOT NULL          
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    study_uid TEXT,
+    status BOOLEAN NOT NULL,
+    timestamp TIMESTAMP NOT NULL
 );"""
-
-
-
 
 
 INSERT_QUERY_DICOM_META = """

@@ -1,25 +1,25 @@
-import os
+import gc
 import logging
-from .src.global_var import BASE_DIR
-from pynetdicom import AE
-import uuid
-from datetime import datetime
-from .query import INSERT_QUERY_DICOM_ASS
-from .src.global_var import SCP_AE_TITLE, QUEUE_NAME, QUEUE_NAME_RADIOMCS, USE_RADIOMICS
-import pika
 import threading
 import time
-import gc
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+import pika
+from pynetdicom import AE
+
 from anonymization import Anonymizer
-from .XNAThandler import DICOMtoXNAT
-from .association_tracker import AssociationTracker
-from .background_processor import BackgroundProcessor
+from dicomsorter.association_tracker import AssociationTracker
+from dicomsorter.background_processor import BackgroundProcessor
+from dicomsorter.query import INSERT_QUERY_DICOM_ASS
+from dicomsorter.src.global_var import BASE_DIR, QUEUE_NAME, QUEUE_NAME_RADIOMCS, SCP_AE_TITLE, USE_RADIOMICS
+from dicomsorter.XNAThandler import DICOMtoXNAT
 
 logger = logging.getLogger(__name__)
 
 
 class DicomStoreHandler:
-
     def __init__(self, db, path_recipes, send_to_main=True):
         self.db = db
         self.ae = AE(ae_title=SCP_AE_TITLE)
@@ -39,8 +39,8 @@ class DicomStoreHandler:
 
         self.anonymizer = Anonymizer(path_files=path_recipes)
         self.XNATsender = DICOMtoXNAT()
-        uuids_file = os.path.join(path_recipes, "uuids.txt")
-        with open(uuids_file) as f:
+        uuids_file = Path(path_recipes) / "uuids.txt"
+        with uuids_file.open() as f:
             valid_uuids = [line.strip() for line in f if line.strip()]
         self.valid_uuids = valid_uuids
 
@@ -66,18 +66,18 @@ class DicomStoreHandler:
         while not self.stop_heartbeat.is_set():
             try:
                 if self.connection_rmq and self.connection_rmq.is_open:
-                    logging.info("Processing RabbitMQ heartbeat..")
+                    logger.info("Processing RabbitMQ heartbeat..")
                     self.connection_rmq.process_data_events(time_limit=0)
-                    logging.info("Heartbeat processed.")
+                    logger.info("Heartbeat processed.")
                 else:
-                    logging.warning("RabbitMQ connection is closed, attempting to reconnect...")
+                    logger.warning("RabbitMQ connection is closed, attempting to reconnect...")
                     if self.rabbitmq_url:
                         self.open_connection(self.rabbitmq_url)
                         for queue in self.queues:
                             self.channel.queue_declare(queue=queue, passive=False, durable=True)
-                        logging.info("Reconnected to RabbitMQ successfully.")
-            except Exception as e:
-                logging.error(f"Heartbeat error: {e}. Will retry on next cycle.")
+                        logger.info("Reconnected to RabbitMQ successfully.")
+            except Exception:
+                logger.exception("Heartbeat error. Will retry on next cycle.")
             time.sleep(10)
 
     def close_connection(self):
@@ -93,23 +93,23 @@ class DicomStoreHandler:
     def send_to_queue(self, message):
         for queue in self.queues:
             self.channel.basic_publish(
-                exchange='',
+                exchange="",
                 routing_key=queue,
-                body=message.encode('utf-8'),
-                properties=pika.BasicProperties(delivery_mode=2)
+                body=message.encode("utf-8"),
+                properties=pika.BasicProperties(delivery_mode=2),
             )
-        logging.info(f"Sent message to queues: {self.queues}")
+        logger.info("Sent message to queues: %s", self.queues)
 
     def send_to_queue_threadsafe(self, message):
         def _publish():
             for q in self.queues:
                 self.channel.basic_publish(
-                    exchange='',
+                    exchange="",
                     routing_key=q,
-                    body=message.encode('utf-8'),
-                    properties=pika.BasicProperties(delivery_mode=2)
+                    body=message.encode("utf-8"),
+                    properties=pika.BasicProperties(delivery_mode=2),
                 )
-            logging.info(f"Sent message to queues: {self.queues}")
+            logger.info("Sent message to queues: %s", self.queues)
 
         self.connection_rmq.add_callback_threadsafe(_publish)
 
@@ -122,32 +122,26 @@ class DicomStoreHandler:
 
         self.tracker.register(assoc_id)
 
-        params = (
-            assoc_id,
-            ae_title,
-            ae_address,
-            ae_port,
-            datetime.now()
-        )
-        logging.debug(f"\n{'='*70}")
-        logging.debug(f"NEW ASSOCIATION OPENED")
-        logging.debug(f"Association ID: {assoc_id}")
-        logging.debug(f"Client: {ae_title} ({ae_address}:{ae_port})")
-        logging.debug(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        logging.debug(f"{'='*70}")
+        params = (assoc_id, ae_title, ae_address, ae_port, datetime.now())
+        logger.debug("\n%s", "=" * 70)
+        logger.debug("NEW ASSOCIATION OPENED")
+        logger.debug("Association ID: %s", assoc_id)
+        logger.debug("Client: %s (%s:%s)", ae_title, ae_address, ae_port)
+        logger.debug("Time: %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        logger.debug("%s", "=" * 70)
         self.db.execute_query(INSERT_QUERY_DICOM_ASS, params)
 
     def handle_assoc_close(self, event):
-        assoc_id = getattr(event.assoc, 'assoc_id', None)
+        assoc_id = getattr(event.assoc, "assoc_id", None)
         if assoc_id is None:
-            logging.warning("Association closed without an assoc_id")
+            logger.warning("Association closed without an assoc_id")
             return
 
-        logging.debug(f"\n{'='*70}")
-        logging.debug(f"ASSOCIATION CLOSED")
-        logging.debug(f"Association ID: {assoc_id}")
-        logging.debug(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        logging.debug(f"{'='*70}")
+        logger.debug("\n%s", "=" * 70)
+        logger.debug("ASSOCIATION CLOSED")
+        logger.debug("Association ID: %s", assoc_id)
+        logger.debug("Time: %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        logger.debug("%s", "=" * 70)
 
         self.tracker.mark_closed(assoc_id)
 
@@ -156,17 +150,19 @@ class DicomStoreHandler:
         ds.file_meta = event.file_meta
         assoc_id = event.assoc.assoc_id
 
-        study_uid = getattr(ds, 'StudyInstanceUID', None)
+        study_uid = getattr(ds, "StudyInstanceUID", None)
 
         if self.valid_uuids:
             if study_uid not in self.valid_uuids:
-                logging.error(
-                    f"REJECTED: Study UID {study_uid} not in allowed list. "
-                    f"Client: {event.assoc.requestor.ae_title}@{event.assoc.requestor.address}"
+                logger.error(
+                    "REJECTED: Study UID %s not in allowed list. Client: %s@%s",
+                    study_uid,
+                    event.assoc.requestor.ae_title,
+                    event.assoc.requestor.address,
                 )
                 return 0xC211
 
-        patient_id = getattr(ds, 'PatientID', None)
+        patient_id = getattr(ds, "PatientID", None)
         self.tracker.record_file(assoc_id, patient_id)
         self.processor.enqueue(ds, assoc_id)
 
@@ -175,7 +171,7 @@ class DicomStoreHandler:
     def _on_patient_complete(self, assoc_id, original_patient_id):
         anon_patient_id = self.anonymizer._patient_map.get(original_patient_id)
         if anon_patient_id is None:
-            logging.warning(f"No anonymized ID found for patient {original_patient_id} in assoc {assoc_id}")
+            logger.warning("No anonymized ID found for patient %s in assoc %s", original_patient_id, assoc_id)
             return
 
         query = """
@@ -186,31 +182,31 @@ class DicomStoreHandler:
         studies = self.db.fetch_all(query, (assoc_id, anon_patient_id))
 
         if not studies:
-            logging.warning(f"Patient {original_patient_id} complete but no studies found in database")
+            logger.warning("Patient %s complete but no studies found in database", original_patient_id)
             return
 
         for (study_uid,) in studies:
             try:
                 self.send_to_queue_threadsafe(study_uid)
-                logging.info(f"Queued study {study_uid} for patient {anon_patient_id}")
+                logger.info("Queued study %s for patient %s", study_uid, anon_patient_id)
             except Exception:
-                logging.exception(f"Failed to queue study {study_uid}")
+                logger.exception("Failed to queue study %s", study_uid)
 
             try:
-                study_folder = os.path.join(BASE_DIR, anon_patient_id, study_uid)
+                study_folder = str(Path(BASE_DIR) / anon_patient_id / study_uid)
                 self.XNATsender.run(study_folder)
-                logging.info(f"Sent study {study_uid} to XNAT")
+                logger.info("Sent study %s to XNAT", study_uid)
             except Exception:
-                logging.exception(f"XNAT upload failed for study {study_uid}")
+                logger.exception("XNAT upload failed for study %s", study_uid)
 
         gc.collect()
 
     def _on_association_complete(self, assoc_id, state):
-        logging.info(
-            f"Association {assoc_id} complete — "
-            f"processed={state.processed_count}, errors={state.error_count}"
+        logger.info(
+            "Association %s complete — processed=%s, errors=%s",
+            assoc_id,
+            state.processed_count,
+            state.error_count,
         )
         if state.error_count > 0:
-            logging.warning(
-                f"Association {assoc_id} finished with {state.error_count} errors"
-            )
+            logger.warning("Association %s finished with %s errors", assoc_id, state.error_count)

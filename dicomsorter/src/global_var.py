@@ -25,6 +25,9 @@ XNAT_USERNAME = "admin"
 USE_RADIOMICS = os.getenv("USE_RADIOMICS", "").strip().lower() in ("1", "true", "yes", "y", "on")
 XNAT_PASSWORD = "admin"
 XNAT_URL = "http://xnat-nginx:80"
+XNAT_SCP_HOST = os.getenv("XNAT_SCP_HOST", "xnat-web")
+XNAT_SCP_PORT = int(os.getenv("XNAT_SCP_PORT", "8104"))
+XNAT_SCP_AE_TITLE = os.getenv("XNAT_SCP_AE_TITLE", "PREACT")
 if USE_RADIOMICS:
     radiomics_config = Config("radiomics").config
     QUEUE_NAME_RADIOMCS = radiomics_config["queue_name"]

@@ -38,18 +38,21 @@ class DicomStoreHandler:
             raise ValueError("At least one queue must be selected for sending messages.")
 
         self.anonymizer = Anonymizer(path_files=path_recipes)
-        treat_file = os.path.join(path_recipes, "treatment.csv")
-        self.XNATsender = DICOMtoXNAT(treatment_path=treat_file)
+        self.XNATsender = DICOMtoXNAT()
         uuids_file = os.path.join(path_recipes, "uuids.txt")
         with open(uuids_file) as f:
             valid_uuids = [line.strip() for line in f if line.strip()]
         self.valid_uuids = valid_uuids
 
-        self.tracker = AssociationTracker(on_complete_callback=self._on_association_complete)
+        self.tracker = AssociationTracker(
+            on_complete_callback=self._on_association_complete,
+            on_patient_complete_callback=self._on_patient_complete,
+        )
         self.processor = BackgroundProcessor(
             anonymizer=self.anonymizer,
             db=self.db,
             tracker=self.tracker,
+            path_recipes=path_recipes,
         )
 
     def open_connection(self, rabbitmq_url):
@@ -163,49 +166,51 @@ class DicomStoreHandler:
                 )
                 return 0xC211
 
-        self.tracker.increment_expected(assoc_id)
+        patient_id = getattr(ds, 'PatientID', None)
+        self.tracker.record_file(assoc_id, patient_id)
         self.processor.enqueue(ds, assoc_id)
 
         return 0x0000
+
+    def _on_patient_complete(self, assoc_id, original_patient_id):
+        anon_patient_id = self.anonymizer._patient_map.get(original_patient_id)
+        if anon_patient_id is None:
+            logging.warning(f"No anonymized ID found for patient {original_patient_id} in assoc {assoc_id}")
+            return
+
+        query = """
+            SELECT DISTINCT study_instance_uid
+            FROM dicom_insert
+            WHERE assoc_id = %s AND patient_id = %s
+        """
+        studies = self.db.fetch_all(query, (assoc_id, anon_patient_id))
+
+        if not studies:
+            logging.warning(f"Patient {original_patient_id} complete but no studies found in database")
+            return
+
+        for (study_uid,) in studies:
+            try:
+                self.send_to_queue_threadsafe(study_uid)
+                logging.info(f"Queued study {study_uid} for patient {anon_patient_id}")
+            except Exception:
+                logging.exception(f"Failed to queue study {study_uid}")
+
+            try:
+                study_folder = os.path.join(BASE_DIR, anon_patient_id, study_uid)
+                self.XNATsender.run(study_folder)
+                logging.info(f"Sent study {study_uid} to XNAT")
+            except Exception:
+                logging.exception(f"XNAT upload failed for study {study_uid}")
+
+        gc.collect()
 
     def _on_association_complete(self, assoc_id, state):
         logging.info(
             f"Association {assoc_id} complete — "
             f"processed={state.processed_count}, errors={state.error_count}"
         )
-
-        query = """
-            SELECT DISTINCT study_instance_uid, patient_id
-            FROM dicom_insert
-            WHERE assoc_id = %s
-        """
-        studies = self.db.fetch_all(query, (assoc_id,))
-
-        if studies:
-            for study_uid, patient_id in studies:
-                try:
-                    self.send_to_queue_threadsafe(study_uid)
-                    logging.info(f"Queued study {study_uid} for patient {patient_id}")
-                except Exception:
-                    logging.exception(f"Failed to queue study {study_uid}")
-
-                try:
-                    study_folder = os.path.join(BASE_DIR, patient_id, study_uid)
-                    self.XNATsender.run(study_folder)
-                    logging.info(f"Sent study {study_uid} to XNAT")
-                except Exception:
-                    logging.exception(f"XNAT upload failed for study {study_uid}")
-        else:
-            logging.warning(f"Association {assoc_id} completed but no studies found in database")
-
-        if state.error_count == 0 and studies:
-            logging.info(
-                f"Association {assoc_id} finished successfully — "
-                f"{state.processed_count} files, {len(studies)} studies"
-            )
-        elif state.error_count > 0:
+        if state.error_count > 0:
             logging.warning(
                 f"Association {assoc_id} finished with {state.error_count} errors"
             )
-
-        gc.collect()

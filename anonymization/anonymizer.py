@@ -137,6 +137,9 @@ class Anonymizer:
 
         return rtstruct
 
+    def is_patient_known(self, patient_id: str) -> bool:
+        return patient_id in self._patient_map
+
     def anonymize(self, dicom_obj):
 
         # Suppress logger output during deid processing
@@ -147,7 +150,7 @@ class Anonymizer:
 
                 # Save the in-memory dataset to a temporary file
                 dicom_obj.save_as(temp_path, write_like_original=False)
-                
+
                 del dicom_obj
 
                 items = get_identifiers([temp_path], expand_sequences=False)
@@ -168,9 +171,8 @@ class Anonymizer:
                 del items
                 
                 dicom_obj = updated[0]
-                
-                del updated
 
+                del updated
 
         # Add private tags definitions
         # private_entries = {

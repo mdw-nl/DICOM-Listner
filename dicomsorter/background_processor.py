@@ -1,108 +1,174 @@
-import copy
-import gc
 import logging
+import multiprocessing
 import queue
 import threading
+from collections import deque
 from dataclasses import dataclass
+from multiprocessing.pool import AsyncResult
 
 from pydicom import Dataset
 
+from anonymization import Anonymizer
 from .src.dicom_data import return_dicom_data, create_folder
 from .query import INSERT_QUERY_DICOM_META
 
 logger = logging.getLogger(__name__)
 
 QUEUE_MAX_SIZE = 50
+_POOL_MAX_WORKERS = 4
+_WORKER_MAX_TASKS = 50
+
+_mp_context = multiprocessing.get_context('fork')
+
+_worker_anonymizer: Anonymizer | None = None
+
+
+def _init_worker(path_recipes: str) -> None:
+    global _worker_anonymizer
+    _worker_anonymizer = Anonymizer(path_files=path_recipes)
+
+
+def _anonymize_in_worker(ds: Dataset) -> Dataset | None:
+    return _worker_anonymizer.run(ds)
 
 
 @dataclass
 class WorkItem:
     ds: Dataset
     assoc_id: str
+    original_patient_id: str | None = None
+    pixel_data: bytes | None = None
+
+
+@dataclass
+class _InFlightItem:
+    future: AsyncResult
+    assoc_id: str
+    original_patient_id: str | None
+    pixel_data: bytes | None
+    sop_uid: str
 
 
 class BackgroundProcessor:
-    def __init__(self, anonymizer, db, tracker):
+    def __init__(self, anonymizer, db, tracker, path_recipes):
         self._queue: queue.Queue[WorkItem] = queue.Queue(maxsize=QUEUE_MAX_SIZE)
         self._stop = threading.Event()
         self._anonymizer = anonymizer
         self._db = db
         self._tracker = tracker
+        self._path_recipes = path_recipes
+        self._pool = self._make_pool()
         self._thread = threading.Thread(target=self._worker_loop, daemon=True, name="bg-processor")
         self._thread.start()
         logger.info("BackgroundProcessor started")
 
+    def _make_pool(self):
+        return _mp_context.Pool(
+            processes=_POOL_MAX_WORKERS,
+            initializer=_init_worker,
+            initargs=(self._path_recipes,),
+            maxtasksperchild=_WORKER_MAX_TASKS,
+        )
+
     def enqueue(self, ds: Dataset, assoc_id: str):
-        ds_copy = copy.deepcopy(ds)
-        item = WorkItem(ds=ds_copy, assoc_id=assoc_id)
+        original_patient_id = getattr(ds, 'PatientID', None)
+        pixel_data = None
+        if hasattr(ds, 'PixelData'):
+            pixel_data = ds.PixelData
+            del ds.PixelData
+        item = WorkItem(ds=ds, assoc_id=assoc_id, original_patient_id=original_patient_id, pixel_data=pixel_data)
         self._queue.put(item)
         logger.debug(f"Enqueued work item for assoc {assoc_id}, queue size ~{self._queue.qsize()}")
 
-    def _worker_loop(self):
-        while not self._stop.is_set():
-            try:
-                item = self._queue.get(timeout=1)
-            except queue.Empty:
-                continue
-
-            try:
-                self._process_item(item)
-                self._tracker.record_processed(item.assoc_id)
-            except Exception:
-                logger.exception(f"Worker failed processing item for assoc {item.assoc_id}")
-                self._tracker.record_error(item.assoc_id)
-            finally:
-                del item
-                gc.collect()
-
-        self._drain()
-
-    def _process_item(self, item: WorkItem):
-        ds = item.ds
-        assoc_id = item.assoc_id
-
-        anonymised_ds = self._anonymizer.run(ds)
-        if anonymised_ds is None:
-            sop_uid = getattr(ds, "SOPInstanceUID", "UNKNOWN")
-            logger.error(f"Anonymization failed for SOP {sop_uid}")
-            del ds
-            raise RuntimeError("Anonymization returned None")
-
-        del ds
+    def _submit_item(self, item: WorkItem, in_flight: deque):
+        patient_id = item.original_patient_id
+        if patient_id is None or not self._anonymizer.is_patient_known(patient_id):
+            sop_uid = getattr(item.ds, "SOPInstanceUID", "UNKNOWN")
+            logger.error(f"PatientID '{patient_id}' not in lookup CSV, rejecting SOP {sop_uid}")
+            self._tracker.record_error(item.assoc_id, patient_id)
+            return
+        sop_uid = getattr(item.ds, "SOPInstanceUID", "UNKNOWN")
+        future = self._pool.apply_async(_anonymize_in_worker, (item.ds,))
         item.ds = None
+        in_flight.append(_InFlightItem(
+            future=future,
+            assoc_id=item.assoc_id,
+            original_patient_id=patient_id,
+            pixel_data=item.pixel_data,
+            sop_uid=sop_uid,
+        ))
 
-        patient_name, patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
-            instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(
-            anonymised_ds)
+    def _collect_one(self, in_flight: deque):
+        inf = in_flight.popleft()
+        try:
+            anonymised_ds = inf.future.get()
+            if anonymised_ds is None:
+                logger.error(f"Anonymization failed for SOP {inf.sop_uid}")
+                raise RuntimeError("Anonymization returned None")
 
-        filename = create_folder(patient_id, study_uid, modality, sop_uid)
-        anonymised_ds.save_as(filename, write_like_original=False)
-        logger.info(f"Stored {modality} file for patient {patient_id}: {filename}")
+            if inf.pixel_data is not None:
+                anonymised_ds.PixelData = inf.pixel_data
+                anonymised_ds['PixelData'].VR = 'OW'
+                inf.pixel_data = None
 
-        del anonymised_ds
+            patient_name, patient_id, study_uid, series_uid, modality, sop_uid, sop_class_uid, \
+                instance_number, modality_type, referenced_rt_plan_uid, referenced_sop_class_uid = return_dicom_data(
+                anonymised_ds)
 
-        params = (
-            patient_name, patient_id, study_uid, series_uid, modality,
-            sop_uid, sop_class_uid, instance_number, filename,
-            referenced_rt_plan_uid, referenced_sop_class_uid, modality_type, assoc_id
-        )
-        self._db.execute_query(INSERT_QUERY_DICOM_META, params)
+            filename = create_folder(patient_id, study_uid, modality, sop_uid)
+            anonymised_ds.save_as(filename, write_like_original=False)
+            logger.info(f"Stored {modality} file for patient {patient_id}: {filename}")
 
-    def _drain(self):
+            del anonymised_ds
+
+            params = (
+                patient_name, patient_id, study_uid, series_uid, modality,
+                sop_uid, sop_class_uid, instance_number, filename,
+                referenced_rt_plan_uid, referenced_sop_class_uid, modality_type, inf.assoc_id
+            )
+            self._db.execute_query(INSERT_QUERY_DICOM_META, params)
+            self._tracker.record_processed(inf.assoc_id, inf.original_patient_id)
+        except Exception:
+            logger.exception(f"Worker failed processing item for assoc {inf.assoc_id}")
+            self._tracker.record_error(inf.assoc_id, inf.original_patient_id)
+        finally:
+            del inf
+
+    def _worker_loop(self):
+        in_flight: deque[_InFlightItem] = deque()
+
+        while True:
+            if not self._stop.is_set():
+                while len(in_flight) < _POOL_MAX_WORKERS:
+                    try:
+                        item = self._queue.get_nowait()
+                        self._submit_item(item, in_flight)
+                    except queue.Empty:
+                        break
+
+            if in_flight:
+                self._collect_one(in_flight)
+            elif self._stop.is_set():
+                break
+            else:
+                try:
+                    item = self._queue.get(timeout=1)
+                    self._submit_item(item, in_flight)
+                except queue.Empty:
+                    continue
+
+        self._drain(in_flight)
+
+    def _drain(self, in_flight: deque):
+        while in_flight:
+            self._collect_one(in_flight)
         while True:
             try:
                 item = self._queue.get_nowait()
+                self._submit_item(item, in_flight)
+                self._collect_one(in_flight)
             except queue.Empty:
                 break
-            try:
-                self._process_item(item)
-                self._tracker.record_processed(item.assoc_id)
-            except Exception:
-                logger.exception(f"Worker drain failed for assoc {item.assoc_id}")
-                self._tracker.record_error(item.assoc_id)
-            finally:
-                del item
-                gc.collect()
 
     def shutdown(self):
         logger.info("BackgroundProcessor shutting down...")
@@ -110,4 +176,6 @@ class BackgroundProcessor:
         self._thread.join(timeout=300)
         if self._thread.is_alive():
             logger.warning("BackgroundProcessor thread did not exit in time")
+        self._pool.close()
+        self._pool.join()
         logger.info("BackgroundProcessor stopped")

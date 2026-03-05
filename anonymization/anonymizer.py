@@ -35,7 +35,7 @@ def suppress_output():
 
 class Anonymizer:
 
-    def __init__(self, path_files="dicomsorter/dicomsorter/recipes/"):
+    def __init__(self, path_files="dicomsorter/dicomsorter/recipes/", patient_map_override=None, use_csv_lookup=True):
         # Get the private tags from the varaibles.yaml file
         path_var = os.path.join(path_files, "variables.yaml")
         with open(path_var, 'r') as f:
@@ -53,8 +53,13 @@ class Anonymizer:
         self.recipe_path = os.path.join(path_files, "recipe.dicom")
 
         self.patient_lookup_csv = os.path.join(path_files, "patient_lookup.csv")
-        df = pd.read_csv(self.patient_lookup_csv, dtype=str)
-        self._patient_map = dict(zip(df["original"], df["new"]))
+        self._patient_map = {}
+        if use_csv_lookup and os.path.exists(self.patient_lookup_csv):
+            df = pd.read_csv(self.patient_lookup_csv, dtype=str)
+            self._patient_map.update(dict(zip(df["original"], df["new"])))
+
+        if patient_map_override:
+            self._patient_map.update(patient_map_override)
 
         self.ROI_normalization_path = os.path.join(path_files, "ROI_normalization.yaml")
 
@@ -107,10 +112,12 @@ class Anonymizer:
         patient_id = getattr(dicom, "PatientID", None)
         if patient_id is None:
             raise ValueError("PatientID missing")
+        if patient_id.startswith("PAT-"):
+            return patient_id
         try:
             return self._patient_map[patient_id]
         except KeyError:
-            raise ValueError(f"PatientID '{patient_id}' not found in patient lookup CSV")
+            raise ValueError(f"PatientID '{patient_id}' not found in runtime patient mapping")
 
     def ROI_normalization(self, rtstruct):
         """
@@ -145,7 +152,7 @@ class Anonymizer:
                 temp_path = os.path.join(tmpdir, "temp.dcm")
 
                 # Save the in-memory dataset to a temporary file
-                dicom_obj.save_as(temp_path, write_like_original=False)
+                dicom_obj.save_as(temp_path, enforce_file_format=True)
 
                 items = get_identifiers([temp_path], expand_sequences=False)
 

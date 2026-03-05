@@ -26,9 +26,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DICOM_BATCH_SIZE = max(1, int(os.getenv("ANONYMIZER_DICOM_BATCH_SIZE", "10")))
-GC_INTERVAL = int(os.getenv("ANONYMIZER_GC_INTERVAL", "0"))
-CPU_THROTTLE_SECONDS = float(os.getenv("ANONYMIZER_CPU_THROTTLE_SECONDS", "0"))
+DICOM_BATCH_SIZE = int(os.getenv("ANONYMIZER_DICOM_BATCH_SIZE", "25"))
 
 
 def create_db_connection():
@@ -132,9 +130,9 @@ def iter_study_file_paths(db, study_uid: str, batch_size: int = DICOM_BATCH_SIZE
 
 def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
     processed = 0
-    gc_interval = GC_INTERVAL
+    gc_interval = 25
 
-    for dicom_path in iter_study_file_paths(db, study_uid, batch_size=DICOM_BATCH_SIZE):
+    for dicom_path in iter_study_file_paths(db, study_uid):
         if not dicom_path or not os.path.exists(dicom_path):
             logger.warning("Skipping missing file path: %s", dicom_path)
             continue
@@ -149,9 +147,6 @@ def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
             del anonymized_ds
             if gc_interval > 0 and processed > 0 and processed % gc_interval == 0:
                 gc.collect()
-
-        if CPU_THROTTLE_SECONDS > 0:
-            sleep(CPU_THROTTLE_SECONDS)
 
     if processed == 0:
         logger.warning("No DICOM rows found for study UID %s", study_uid)
@@ -173,13 +168,6 @@ def main():
     anonymizer = Anonymizer(path_files=recipes_path, patient_map_override={}, use_csv_lookup=False)
     rabbitmq_url = build_rabbitmq_url()
 
-    logger.info(
-        "Anonymizer runtime settings: batch_size=%s gc_interval=%s cpu_throttle_seconds=%s publish_to_queue=%s",
-        DICOM_BATCH_SIZE,
-        GC_INTERVAL,
-        CPU_THROTTLE_SECONDS,
-        ANONYMIZER_PUBLISH_TO_QUEUE_NAME,
-    )
 
     while True:
         connection = None

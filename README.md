@@ -68,7 +68,7 @@ For Docker deployment, the project now uses **one shared Dockerfile** and three 
 - `xnat-worker` -> `python xnat_worker.py`
 
 This is the recommended setup so all services share the same runtime/dependencies while scaling independently.
-When anonymizer is enabled, the XNAT worker receives study UIDs only after in-place anonymization is completed.
+When anonymizer is enabled, anonymized studies are always sent to `queue_name`; forwarding to `xnat_queue_name` is optional via `USE_XNAT_QUEUE` (default: enabled).
 Because anonymization is in-place, `dicom-sorter`, `anonymizer-worker`, and `xnat-worker` should all mount the same listener storage volume (`./associationdata:/dicomsorter/data`).
 
 To reduce memory pressure in the anonymizer container, the worker processes study files in DB batches (instead of loading an entire study result set at once). You can tune batch size with `ANONYMIZER_DICOM_BATCH_SIZE` (default `100`) in `docker-compose.yaml`.
@@ -77,6 +77,7 @@ RabbitMQ queues are configured in `Config/config.yaml` under `rabbitMQ`:
 - `queue_name` (listener output queue when anonymizer is disabled, e.g. `DICOM_Processor`)
 - `anonymizer_queue_name` (listener -> anonymizer input queue)
 - `xnat_queue_name` (anonymizer -> XNAT worker queue, defaults to `DICOM_XNAT`)
+- `USE_XNAT_QUEUE` env var (set `false` to disable anonymizer forwarding to `xnat_queue_name`)
 - `use_anonymizer` (if `true`, listener publishes to `anonymizer_queue_name`; if `false`, listener publishes directly to `queue_name`)
 
 XNAT SCP settings are configured in `Config/config.yaml` under `Xnat`:

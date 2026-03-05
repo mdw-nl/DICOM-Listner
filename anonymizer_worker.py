@@ -13,8 +13,10 @@ from dicomsorter import PostgresInterface
 from dicomsorter.src.global_var import (
     ANONYMIZER_QUEUE_NAME,
     NUMBER_ATTEMPTS,
+    QUEUE_NAME,
     RETRY_DELAY_IN_SECONDS,
     USE_ANONYMIZER,
+    USE_XNAT_QUEUE,
     XNAT_QUEUE_NAME,
 )
 
@@ -167,6 +169,7 @@ def main():
     recipes_path = load_config_path("recipes")
     anonymizer = Anonymizer(path_files=recipes_path, patient_map_override={}, use_csv_lookup=False)
     rabbitmq_url = build_rabbitmq_url()
+    logger.info("USE_XNAT_QUEUE=%s", USE_XNAT_QUEUE)
 
     while True:
         connection = None
@@ -174,7 +177,9 @@ def main():
             connection = open_rabbitmq_connection(rabbitmq_url)
             channel = connection.channel()
             channel.queue_declare(queue=ANONYMIZER_QUEUE_NAME, durable=True)
-            channel.queue_declare(queue=XNAT_QUEUE_NAME, durable=True)
+            channel.queue_declare(queue=QUEUE_NAME, durable=True)
+            if USE_XNAT_QUEUE:
+                channel.queue_declare(queue=XNAT_QUEUE_NAME, durable=True)
             channel.basic_qos(prefetch_count=1)
 
             def callback(ch, method, properties, body):
@@ -187,10 +192,17 @@ def main():
                     if processed > 0:
                         ch.basic_publish(
                             exchange="",
-                            routing_key=XNAT_QUEUE_NAME,
+                            routing_key=QUEUE_NAME,
                             body=study_uid.encode("utf-8"),
                             properties=pika.BasicProperties(delivery_mode=2),
                         )
+                        if USE_XNAT_QUEUE:
+                            ch.basic_publish(
+                                exchange="",
+                                routing_key=XNAT_QUEUE_NAME,
+                                body=study_uid.encode("utf-8"),
+                                properties=pika.BasicProperties(delivery_mode=2),
+                            )
                     ch.basic_ack(delivery_tag=method.delivery_tag)
                 except Exception:
                     logger.exception("Failed processing study UID %s", study_uid)

@@ -29,6 +29,7 @@ QUEUE_NAME = rabbitMQ_config["queue_name"]
 ANONYMIZER_QUEUE_NAME = rabbitMQ_config.get("anonymizer_queue_name", "DICOM_Anonymizer")
 XNAT_QUEUE_NAME = rabbitMQ_config.get("xnat_queue_name", "DICOM_XNAT")
 USE_ANONYMIZER = _as_bool(os.getenv("USE_ANONYMIZER"), _as_bool(rabbitMQ_config.get("use_anonymizer", True), True))
+USE_XNAT_QUEUE = _as_bool(os.getenv("USE_XNAT_QUEUE"), True)
 
 BASE_DIR = os.path.join(PROJECT_ROOT, "data")  # safer absolute path
 ANONYMIZED_BASE_DIR = os.path.join(PROJECT_ROOT, "anonymized_data")

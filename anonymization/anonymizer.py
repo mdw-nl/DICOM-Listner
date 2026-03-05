@@ -183,7 +183,7 @@ class Anonymizer:
 
     def run(self, dicom_path):
         try:
-            modality_ds = pydicom.dcmread(dicom_path, stop_before_pixels=True)
+            modality_ds = pydicom.dcmread(dicom_path, defer_size="1 MB")
             modality = getattr(modality_ds, "Modality", None)
             del modality_ds
 

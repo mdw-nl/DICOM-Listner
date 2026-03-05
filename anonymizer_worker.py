@@ -5,8 +5,6 @@ import sys
 from time import sleep
 
 import pika
-from pydicom import dcmread
-
 from anonymization import Anonymizer
 from config_handler import Config, load_config_path
 from dicomsorter import PostgresInterface
@@ -27,7 +25,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DICOM_BATCH_SIZE = int(os.getenv("ANONYMIZER_DICOM_BATCH_SIZE", "100"))
+DICOM_BATCH_SIZE = int(os.getenv("ANONYMIZER_DICOM_BATCH_SIZE", "25"))
 
 
 def create_db_connection():
@@ -131,26 +129,23 @@ def iter_study_file_paths(db, study_uid: str, batch_size: int = DICOM_BATCH_SIZE
 
 def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
     processed = 0
+    gc_interval = 25
 
     for dicom_path in iter_study_file_paths(db, study_uid):
         if not dicom_path or not os.path.exists(dicom_path):
             logger.warning("Skipping missing file path: %s", dicom_path)
             continue
 
-        dataset = None
         anonymized_ds = None
         try:
-            dataset = dcmread(dicom_path, defer_size="1 MB")
-            anonymized_ds = anonymizer.run(dataset)
+            anonymized_ds = anonymizer.run(dicom_path)
             if anonymized_ds is None:
                 raise RuntimeError(f"Anonymization failed for {dicom_path}")
-
-            anonymized_ds.save_as(dicom_path, enforce_file_format=True)
             processed += 1
         finally:
-            del dataset
             del anonymized_ds
-            gc.collect()
+            if processed > 0 and processed % gc_interval == 0:
+                gc.collect()
 
     if processed == 0:
         logger.warning("No DICOM rows found for study UID %s", study_uid)

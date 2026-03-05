@@ -99,13 +99,14 @@ def send_study_to_xnat_scp(study_folder: str) -> int:
     sent = 0
     try:
         for dicom_path in iter_dicom_files(study_folder):
-            dataset = dcmread(dicom_path)
+            dataset = dcmread(dicom_path, defer_size="2 MB")
             status = assoc.send_c_store(dataset)
             if not status or getattr(status, "Status", None) not in (0x0000,):
                 raise RuntimeError(
                     f"C-STORE failed for {dicom_path}. Status={getattr(status, 'Status', None)}"
                 )
             sent += 1
+            del dataset
     finally:
         assoc.release()
 

@@ -9,6 +9,7 @@ from anonymization import Anonymizer
 from config_handler import Config, load_config_path
 from dicomsorter import PostgresInterface
 from dicomsorter.src.global_var import (
+    ANONYMIZER_PUBLISH_TO_QUEUE_NAME,
     ANONYMIZER_QUEUE_NAME,
     NUMBER_ATTEMPTS,
     QUEUE_NAME,
@@ -173,7 +174,8 @@ def main():
             connection = open_rabbitmq_connection(rabbitmq_url)
             channel = connection.channel()
             channel.queue_declare(queue=ANONYMIZER_QUEUE_NAME, durable=True)
-            channel.queue_declare(queue=QUEUE_NAME, durable=True)
+            if ANONYMIZER_PUBLISH_TO_QUEUE_NAME:
+                channel.queue_declare(queue=QUEUE_NAME, durable=True)
             channel.queue_declare(queue=XNAT_QUEUE_NAME, durable=True)
             channel.basic_qos(prefetch_count=1)
 
@@ -185,12 +187,16 @@ def main():
 
                     processed = anonymize_study(db, anonymizer, study_uid)
                     if processed > 0:
-                        ch.basic_publish(
-                            exchange="",
-                            routing_key=QUEUE_NAME,
-                            body=study_uid.encode("utf-8"),
-                            properties=pika.BasicProperties(delivery_mode=2),
-                        )
+                        if ANONYMIZER_PUBLISH_TO_QUEUE_NAME:
+                            ch.basic_publish(
+                                exchange="",
+                                routing_key=QUEUE_NAME,
+                                body=study_uid.encode("utf-8"),
+                                properties=pika.BasicProperties(delivery_mode=2),
+                            )
+                        else:
+                            logger.info("Skipping publish to %s (ANONYMIZER_PUBLISH_TO_QUEUE_NAME is disabled)", QUEUE_NAME)
+
                         ch.basic_publish(
                             exchange="",
                             routing_key=XNAT_QUEUE_NAME,

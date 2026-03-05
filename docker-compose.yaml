@@ -67,6 +67,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - ANONYMIZER_DICOM_BATCH_SIZE=25
+      - ANONYMIZER_PUBLISH_TO_QUEUE_NAME=true
     command: ["python", "anonymizer_worker.py"]
     networks:
       - protrait

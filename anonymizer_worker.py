@@ -27,6 +27,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 DICOM_BATCH_SIZE = int(os.getenv("ANONYMIZER_DICOM_BATCH_SIZE", "25"))
+GC_INTERVAL = int(os.getenv("ANONYMIZER_GC_INTERVAL", "0"))
+CPU_THROTTLE_SECONDS = float(os.getenv("ANONYMIZER_CPU_THROTTLE_SECONDS", "0"))
 
 
 def create_db_connection():
@@ -130,7 +132,7 @@ def iter_study_file_paths(db, study_uid: str, batch_size: int = DICOM_BATCH_SIZE
 
 def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
     processed = 0
-    gc_interval = 25
+    gc_interval = GC_INTERVAL
 
     for dicom_path in iter_study_file_paths(db, study_uid):
         if not dicom_path or not os.path.exists(dicom_path):
@@ -145,8 +147,11 @@ def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
             processed += 1
         finally:
             del anonymized_ds
-            if processed > 0 and processed % gc_interval == 0:
+            if gc_interval > 0 and processed > 0 and processed % gc_interval == 0:
                 gc.collect()
+
+        if CPU_THROTTLE_SECONDS > 0:
+            sleep(CPU_THROTTLE_SECONDS)
 
     if processed == 0:
         logger.warning("No DICOM rows found for study UID %s", study_uid)

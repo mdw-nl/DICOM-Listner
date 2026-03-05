@@ -26,7 +26,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DICOM_BATCH_SIZE = int(os.getenv("ANONYMIZER_DICOM_BATCH_SIZE", "25"))
+DICOM_BATCH_SIZE = max(1, int(os.getenv("ANONYMIZER_DICOM_BATCH_SIZE", "10")))
 GC_INTERVAL = int(os.getenv("ANONYMIZER_GC_INTERVAL", "0"))
 CPU_THROTTLE_SECONDS = float(os.getenv("ANONYMIZER_CPU_THROTTLE_SECONDS", "0"))
 
@@ -134,7 +134,7 @@ def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
     processed = 0
     gc_interval = GC_INTERVAL
 
-    for dicom_path in iter_study_file_paths(db, study_uid):
+    for dicom_path in iter_study_file_paths(db, study_uid, batch_size=DICOM_BATCH_SIZE):
         if not dicom_path or not os.path.exists(dicom_path):
             logger.warning("Skipping missing file path: %s", dicom_path)
             continue
@@ -172,6 +172,14 @@ def main():
     recipes_path = load_config_path("recipes")
     anonymizer = Anonymizer(path_files=recipes_path, patient_map_override={}, use_csv_lookup=False)
     rabbitmq_url = build_rabbitmq_url()
+
+    logger.info(
+        "Anonymizer runtime settings: batch_size=%s gc_interval=%s cpu_throttle_seconds=%s publish_to_queue=%s",
+        DICOM_BATCH_SIZE,
+        GC_INTERVAL,
+        CPU_THROTTLE_SECONDS,
+        ANONYMIZER_PUBLISH_TO_QUEUE_NAME,
+    )
 
     while True:
         connection = None

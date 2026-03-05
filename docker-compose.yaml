@@ -66,7 +66,7 @@ services:
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
-      - ANONYMIZER_DICOM_BATCH_SIZE=25
+      - ANONYMIZER_DICOM_BATCH_SIZE=10
       - ANONYMIZER_GC_INTERVAL=0
       - ANONYMIZER_CPU_THROTTLE_SECONDS=0
       - ANONYMIZER_PUBLISH_TO_QUEUE_NAME=true

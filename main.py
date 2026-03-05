@@ -1,14 +1,11 @@
-from pydicom import dcmread
 import logging
 from pynetdicom import evt, StoragePresentationContexts, debug_logger
 from dicomsorter import PostgresInterface, DicomStoreHandler, query
 from dicomsorter.src.global_var import NUMBER_ATTEMPTS, RETRY_DELAY_IN_SECONDS
 from time import sleep
-import yaml
-from config_handler import Config, load_config_path
+from config_handler import Config
 import sys
 
-BASE_DIR = "dicom_storage"
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -51,6 +48,13 @@ def set_up_db(config_dict_db):
     else:
         logger.info("Table calculation_status does not exist. Creating....")
         db.execute_query(query=query.CREATE_DATABASE_QUERY_3)
+        logger.info("Table created....")
+
+    if db.check_table_exists("patient_id_map"):
+        logger.info("The 'patient_id_map' table exists.")
+    else:
+        logger.info("Table patient_id_map does not exist. Creating....")
+        db.execute_query(query=query.CREATE_DATABASE_QUERY_4)
         logger.info("Table created....")
 
     if db.check_table_exists("dvh_result"):
@@ -103,8 +107,7 @@ if __name__ == "__main__":
     config_db = Config("postgres").config
     rabbitMQ_config = Config("rabbitMQ").config
     database = set_up_db(config_db)
-    path_recipes = load_config_path("recipes")
-    dh = DicomStoreHandler(database, path_recipes, send_to_main=True)
+    dh = DicomStoreHandler(database, send_to_main=True)
     host, port, user, pwd = rabbitMQ_config["host"], rabbitMQ_config["port"] \
         , rabbitMQ_config["username"], rabbitMQ_config["password"]
 

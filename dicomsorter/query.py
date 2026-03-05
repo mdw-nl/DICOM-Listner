@@ -1,4 +1,3 @@
-
 CREATE_DATABASE_QUERY = """
 CREATE TABLE dicom_insert (
     id SERIAL  PRIMARY KEY ,
@@ -21,24 +20,28 @@ CREATE TABLE dicom_insert (
 
 CREATE_DATABASE_QUERY_2 = """
 CREATE TABLE associations (
-    uuid TEXT PRIMARY KEY,               
-    ae_title TEXT NOT NULL,              
-    ip_address TEXT NOT NULL,            
-    port INTEGER NOT NULL,               
-    timestamp TIMESTAMP NOT NULL          
+    uuid TEXT PRIMARY KEY,
+    ae_title TEXT NOT NULL,
+    ip_address TEXT NOT NULL,
+    port INTEGER NOT NULL,
+    timestamp TIMESTAMP NOT NULL
 );"""
 
 CREATE_DATABASE_QUERY_3 = """
 CREATE TABLE calculation_status (
-    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,     
-    study_uid TEXT,       
-    status BOOLEAN NOT NULL,                          
-    timestamp TIMESTAMP NOT NULL          
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    study_uid TEXT,
+    status BOOLEAN NOT NULL,
+    timestamp TIMESTAMP NOT NULL
 );"""
 
-
-
-
+CREATE_DATABASE_QUERY_4 = """
+CREATE TABLE patient_id_map (
+    id SERIAL PRIMARY KEY,
+    original_patient_id TEXT UNIQUE NOT NULL,
+    generated_patient_id TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);"""
 
 INSERT_QUERY_DICOM_META = """
     INSERT INTO dicom_insert (
@@ -48,14 +51,8 @@ INSERT_QUERY_DICOM_META = """
     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
-
 INSERT_QUERY_DICOM_ASS = """
     INSERT INTO associations (
         uuid, ae_title, ip_address, port, timestamp
     ) VALUES (%s, %s, %s, %s, %s)
-"""
-
-UNIQUE_UID_SELECT = """
-    SELECT EXIST(SELECT study_instance_uid FROM public.dicom_insert WHERE study_instance_uid = %s;)
-    VALUES (%s);
 """

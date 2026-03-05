@@ -19,6 +19,7 @@ def _as_bool(value, default=False):
         return value
     return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
 
+
 user, pwd = rabbitMQ_config["username"], rabbitMQ_config["password"]
 
 SCP_AE_TITLE = "MY_SCP"
@@ -33,8 +34,8 @@ USE_ANONYMIZER = _as_bool(os.getenv("USE_ANONYMIZER"), _as_bool(rabbitMQ_config.
 BASE_DIR = os.path.join(PROJECT_ROOT, "data")  # safer absolute path
 ANONYMIZED_BASE_DIR = os.path.join(PROJECT_ROOT, "anonymized_data")
 ELASTICSEARCH_URL = "http://localhost:9200"
-XNAT_SCU_AE_TITLE = xnat_config.get("scu_ae_title", "DICOM_SORTER_SCU")
-XNAT_SCP_AE_TITLE = xnat_config["ae_title"]
+XNAT_SCP_AE_TITLE = xnat_config.get("scu_ae_title")
+
 XNAT_SCP_IP = xnat_config["ip"]
 XNAT_SCP_PORT = int(xnat_config["port"])
 

@@ -16,10 +16,9 @@ from dicomsorter.src.global_var import (
     NUMBER_ATTEMPTS,
     RETRY_DELAY_IN_SECONDS,
     XNAT_QUEUE_NAME,
-    XNAT_SCP_AE_TITLE,
     XNAT_SCP_IP,
     XNAT_SCP_PORT,
-    XNAT_SCU_AE_TITLE,
+    XNAT_SCP_AE_TITLE,
 )
 
 logging.basicConfig(
@@ -86,7 +85,7 @@ def iter_dicom_files(folder_path: str):
 
 
 def send_study_to_xnat_scp(study_folder: str) -> int:
-    ae = AE(ae_title=XNAT_SCU_AE_TITLE)
+    ae = AE(ae_title="test")
     for context in StoragePresentationContexts:
         ae.add_requested_context(context.abstract_syntax, ExplicitVRLittleEndian)
 

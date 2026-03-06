@@ -168,6 +168,12 @@ def main():
     anonymizer = Anonymizer(path_files=recipes_path, patient_map_override={}, use_csv_lookup=False)
     rabbitmq_url = build_rabbitmq_url()
 
+    logger.info(
+        "Anonymizer runtime settings: batch_size=%s gc_interval=%s publish_to_queue=%s",
+        DICOM_BATCH_SIZE,
+        25,
+        ANONYMIZER_PUBLISH_TO_QUEUE_NAME,
+    )
 
     while True:
         connection = None

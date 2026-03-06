@@ -7,8 +7,11 @@ from config_handler import Config, load_config_path
 from dicomsorter import DicomStoreHandler, PostgresInterface, queries
 from dicomsorter.queue import MessageQueue
 from dicomsorter.settings import (
+    PACS_CRON_INTERVAL,
+    PACS_QUEUE_NAME,
     QUEUE_NAME,
     QUEUE_NAME_RADIOMCS,
+    USE_PACS,
     USE_RABBITMQ,
     USE_RADIOMICS,
 )
@@ -56,6 +59,8 @@ if __name__ == "__main__":
         queues = [QUEUE_NAME]
         if USE_RADIOMICS and QUEUE_NAME_RADIOMCS:
             queues.append(QUEUE_NAME_RADIOMCS)
+        if USE_PACS:
+            queues.append(PACS_QUEUE_NAME)
         mq = MessageQueue(queues)
         host, port, user, pwd = (
             rabbitMQ_config["host"],
@@ -68,6 +73,16 @@ if __name__ == "__main__":
         mq.start_heartbeat()
     else:
         logger.info("RabbitMQ disabled (USE_RABBITMQ=false)")
+
+    if USE_PACS and USE_RABBITMQ:
+        from dicomsorter.pacs import DICOMtoPACS, PacsConsumer
+
+        mq_url = f"amqp://{rabbitMQ_config['username']}:{rabbitMQ_config['password']}@{rabbitMQ_config['host']}:{rabbitMQ_config['port']}/"
+        pacs_consumer = PacsConsumer(database, mq_url, DICOMtoPACS(), PACS_CRON_INTERVAL)
+        pacs_consumer.start()
+        logger.info("PACS consumer started (interval=%ss)", PACS_CRON_INTERVAL)
+    elif USE_PACS:
+        logger.warning("USE_PACS=true but USE_RABBITMQ=false — PACS archiving disabled")
 
     dh = DicomStoreHandler(database, path_recipes, mq=mq)
     dh.ae.dimse_timeout = 600

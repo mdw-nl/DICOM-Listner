@@ -9,12 +9,9 @@ from pynetdicom import AE
 from dicomsorter.anonymization import Anonymizer
 from dicomsorter.association_tracker import AssociationTracker
 from dicomsorter.background_processor import BackgroundProcessor
-from dicomsorter.pacs import DICOMtoPACS
 from dicomsorter.queries import INSERT_QUERY_DICOM_ASS
 from dicomsorter.settings import (
-    BASE_DIR,
     SCP_AE_TITLE,
-    USE_PACS,
     USE_RABBITMQ,
 )
 
@@ -28,7 +25,6 @@ class DicomStoreHandler:
         self._mq = mq
 
         self.anonymizer = Anonymizer(path_files=path_recipes)
-        self.pacs_sender = DICOMtoPACS()
         uuids_file = Path(path_recipes) / "uuids.txt"
         with uuids_file.open() as f:
             self.valid_uuids = [line.strip() for line in f if line.strip()]
@@ -118,14 +114,6 @@ class DicomStoreHandler:
                     logger.info("Queued study %s for patient %s", study_uid, anon_patient_id)
                 except Exception:
                     logger.exception("Failed to queue study %s", study_uid)
-
-            if USE_PACS:
-                try:
-                    study_folder = str(Path(BASE_DIR) / anon_patient_id / study_uid)
-                    self.pacs_sender.run(study_folder)
-                    logger.info("Sent study %s to PACS", study_uid)
-                except Exception:
-                    logger.exception("PACS upload failed for study %s", study_uid)
 
         gc.collect()
 

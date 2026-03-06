@@ -29,6 +29,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - USE_PACS=${USE_PACS:-true}
+      - PACS_CRON_INTERVAL=${PACS_CRON_INTERVAL:-300}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

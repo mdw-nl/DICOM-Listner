@@ -112,6 +112,37 @@ CREATE TABLE IF NOT EXISTS patient_id_map (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );"""
 
+CREATE_PACS_ARCHIVE = """
+CREATE TABLE IF NOT EXISTS pacs_archive (
+    sop_instance_uid TEXT PRIMARY KEY,
+    series_instance_uid TEXT NOT NULL,
+    modality TEXT NOT NULL,
+    study_instance_uid TEXT NOT NULL,
+    patient_id TEXT NOT NULL,
+    queued_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    archived_at TIMESTAMP,
+    status TEXT NOT NULL DEFAULT 'pending'
+);"""
+
+INSERT_PACS_ARCHIVE_PENDING = """
+INSERT INTO pacs_archive (sop_instance_uid, series_instance_uid, modality, study_instance_uid, patient_id)
+VALUES (%s, %s, %s, %s, %s)
+ON CONFLICT (sop_instance_uid) DO NOTHING;
+"""
+
+UPDATE_PACS_ARCHIVE_ARCHIVED = """
+UPDATE pacs_archive SET status = 'archived', archived_at = NOW()
+WHERE sop_instance_uid = %s;
+"""
+
+QUERY_PENDING_SOPS = """
+SELECT di.sop_instance_uid, di.series_instance_uid, di.modality, di.patient_id, di.file_path
+FROM dicom_insert di
+LEFT JOIN pacs_archive pa
+    ON pa.sop_instance_uid = di.sop_instance_uid AND pa.status = 'archived'
+WHERE di.study_instance_uid = %s AND pa.sop_instance_uid IS NULL;
+"""
+
 TABLES = [
     ("dicom_insert", CREATE_DATABASE_QUERY),
     ("associations", CREATE_DATABASE_QUERY_2),
@@ -119,6 +150,7 @@ TABLES = [
     ("patient_id_map", CREATE_PATIENT_ID_MAP),
     ("dvh_result", CREATE_DVH_RESULT),
     ("dvh_package", CREATE_DVH_PACKAGE),
+    ("pacs_archive", CREATE_PACS_ARCHIVE),
 ]
 
 MIGRATIONS = [

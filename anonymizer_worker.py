@@ -1,5 +1,6 @@
 import gc
 import logging
+import multiprocessing
 import os
 import sys
 from time import sleep
@@ -27,6 +28,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 DICOM_BATCH_SIZE = int(os.getenv("ANONYMIZER_DICOM_BATCH_SIZE", "25"))
+STUDY_PROCESS_ISOLATION_ENABLED = os.getenv("ANONYMIZER_STUDY_PROCESS_ISOLATION", "true").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+)
+STUDY_PROCESS_TIMEOUT_SECONDS = int(os.getenv("ANONYMIZER_STUDY_PROCESS_TIMEOUT_SECONDS", "0"))
 
 
 def create_db_connection():
@@ -155,6 +164,60 @@ def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
     return processed
 
 
+def run_study_anonymization(study_uid: str, recipes_path: str):
+    db = None
+    try:
+        db = create_db_connection()
+        anonymizer = Anonymizer(path_files=recipes_path, patient_map_override={}, use_csv_lookup=False)
+        anonymizer._patient_map = build_patient_mapping_for_study(db, study_uid)
+        processed = anonymize_study(db, anonymizer, study_uid)
+        return {"ok": True, "processed": processed, "error": None}
+    except Exception as exc:
+        logger.exception("Study anonymization failed in child process for study UID %s", study_uid)
+        return {"ok": False, "processed": 0, "error": str(exc)}
+    finally:
+        if db is not None:
+            db.disconnect()
+
+
+def run_study_anonymization_child(study_uid: str, recipes_path: str, result_queue):
+    result_queue.put(run_study_anonymization(study_uid, recipes_path))
+
+
+def run_study_with_process_isolation(study_uid: str, recipes_path: str):
+    context = multiprocessing.get_context("spawn")
+    result_queue = context.Queue(maxsize=1)
+    process = context.Process(target=run_study_anonymization_child, args=(study_uid, recipes_path, result_queue))
+    process.start()
+    process.join(timeout=STUDY_PROCESS_TIMEOUT_SECONDS if STUDY_PROCESS_TIMEOUT_SECONDS > 0 else None)
+
+    if process.is_alive():
+        logger.error(
+            "Study UID %s exceeded process timeout (%s seconds). Terminating child process.",
+            study_uid,
+            STUDY_PROCESS_TIMEOUT_SECONDS,
+        )
+        process.terminate()
+        process.join()
+        return {"ok": False, "processed": 0, "error": "study process timeout"}
+
+    result = None
+    if not result_queue.empty():
+        result = result_queue.get()
+    result_queue.close()
+
+    if process.exitcode != 0:
+        return {
+            "ok": False,
+            "processed": 0,
+            "error": f"child process exit code {process.exitcode}",
+        }
+
+    if result is None:
+        return {"ok": False, "processed": 0, "error": "child process produced no result"}
+    return result
+
+
 def main():
     if ANONYMIZER_QUEUE_NAME == QUEUE_NAME:
         raise ValueError("anonymizer_queue_name must be different from queue_name to avoid queue loops")
@@ -162,16 +225,21 @@ def main():
     if not USE_ANONYMIZER:
         logger.warning("USE_ANONYMIZER is disabled. This worker should not be running.")
 
-    db = create_db_connection()
     recipes_path = load_config_path("recipes")
-    anonymizer = Anonymizer(path_files=recipes_path, patient_map_override={}, use_csv_lookup=False)
+    db = None
+    anonymizer = None
+    if not STUDY_PROCESS_ISOLATION_ENABLED:
+        db = create_db_connection()
+        anonymizer = Anonymizer(path_files=recipes_path, patient_map_override={}, use_csv_lookup=False)
     rabbitmq_url = build_rabbitmq_url()
 
     logger.info(
-        "Anonymizer runtime settings: batch_size=%s gc_interval=%s publish_to_queue=%s",
+        "Anonymizer runtime settings: batch_size=%s gc_interval=%s publish_to_queue=%s process_isolation=%s process_timeout_seconds=%s",
         DICOM_BATCH_SIZE,
         25,
         ANONYMIZER_PUBLISH_TO_QUEUE_NAME,
+        STUDY_PROCESS_ISOLATION_ENABLED,
+        STUDY_PROCESS_TIMEOUT_SECONDS,
     )
 
     while True:
@@ -189,9 +257,17 @@ def main():
                 study_uid = body.decode("utf-8").strip()
                 logger.info("Received study UID for anonymization: %s", study_uid)
                 try:
-                    anonymizer._patient_map = build_patient_mapping_for_study(db, study_uid)
+                    if STUDY_PROCESS_ISOLATION_ENABLED:
+                        result = run_study_with_process_isolation(study_uid, recipes_path)
+                    else:
+                        anonymizer._patient_map = build_patient_mapping_for_study(db, study_uid)
+                        processed = anonymize_study(db, anonymizer, study_uid)
+                        result = {"ok": True, "processed": processed, "error": None}
 
-                    processed = anonymize_study(db, anonymizer, study_uid)
+                    if not result["ok"]:
+                        raise RuntimeError(f"Study anonymization failed for {study_uid}: {result['error']}")
+
+                    processed = result["processed"]
                     if processed > 0:
                         if ANONYMIZER_PUBLISH_TO_QUEUE_NAME:
                             ch.basic_publish(
@@ -228,6 +304,8 @@ def main():
             logger.exception("Anonymizer worker lost connection. Reconnecting in %s seconds...", RETRY_DELAY_IN_SECONDS)
             sleep(RETRY_DELAY_IN_SECONDS)
         finally:
+            if db is not None:
+                db.disconnect()
             if connection and connection.is_open:
                 connection.close()
 

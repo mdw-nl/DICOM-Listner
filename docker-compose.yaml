@@ -68,6 +68,8 @@ services:
       - PYTHONUNBUFFERED=1
       - ANONYMIZER_DICOM_BATCH_SIZE=25
       - ANONYMIZER_PUBLISH_TO_QUEUE_NAME=true
+      - ANONYMIZER_STUDY_PROCESS_ISOLATION=true
+      - ANONYMIZER_STUDY_PROCESS_TIMEOUT_SECONDS=0
     command: ["python", "anonymizer_worker.py"]
     networks:
       - protrait

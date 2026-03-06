@@ -28,7 +28,7 @@ services:
     command: uv run python main.py
     environment:
       - PYTHONUNBUFFERED=1
-      - USE_XNAT=${USE_XNAT:-true}
+      - USE_PACS=${USE_PACS:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

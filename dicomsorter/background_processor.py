@@ -2,6 +2,7 @@ import logging
 import multiprocessing
 import queue
 import threading
+import uuid as _uuid
 from collections import deque
 from dataclasses import dataclass
 from multiprocessing.pool import AsyncResult
@@ -13,6 +14,30 @@ from dicomsorter.dicom_data import create_folder, return_dicom_data
 from dicomsorter.queries import INSERT_QUERY_DICOM_META
 
 logger = logging.getLogger(__name__)
+
+
+def get_or_create_generated_patient_id(db, original_patient_id: str) -> str:
+    row = db.fetch_one(
+        "SELECT generated_patient_id FROM patient_id_map WHERE original_patient_id = %s",
+        (original_patient_id,),
+    )
+    if row:
+        return row[0]
+    generated = f"PAT-{_uuid.uuid4().hex[:12].upper()}"
+    db.execute_query(
+        """
+        INSERT INTO patient_id_map (original_patient_id, generated_patient_id)
+        VALUES (%s, %s)
+        ON CONFLICT (original_patient_id) DO NOTHING
+        """,
+        (original_patient_id, generated),
+    )
+    row = db.fetch_one(
+        "SELECT generated_patient_id FROM patient_id_map WHERE original_patient_id = %s",
+        (original_patient_id,),
+    )
+    return row[0]
+
 
 QUEUE_MAX_SIZE = 50
 _POOL_MAX_WORKERS = 4
@@ -28,7 +53,8 @@ def _init_worker(path_recipes: str) -> None:
     _worker_anonymizer = Anonymizer(path_files=path_recipes)
 
 
-def _anonymize_in_worker(ds: Dataset) -> Dataset | None:
+def _anonymize_in_worker(ds: Dataset, patient_map_entry: dict) -> Dataset | None:
+    _worker_anonymizer._patient_map.update(patient_map_entry)
     return _worker_anonymizer.run(ds)
 
 
@@ -38,6 +64,7 @@ class WorkItem:
     assoc_id: str
     original_patient_id: str | None = None
     pixel_data: bytes | None = None
+    generated_patient_id: str | None = None
 
 
 @dataclass
@@ -72,23 +99,36 @@ class BackgroundProcessor:
 
     def enqueue(self, ds: Dataset, assoc_id: str):
         original_patient_id = getattr(ds, "PatientID", None)
+        generated_patient_id = None
+        if original_patient_id:
+            try:
+                generated_patient_id = get_or_create_generated_patient_id(self._db, original_patient_id)
+            except Exception:
+                logger.exception("Failed to get/create generated patient ID for %s", original_patient_id)
         pixel_data = None
         if hasattr(ds, "PixelData"):
             pixel_data = ds.PixelData
             del ds.PixelData
-        item = WorkItem(ds=ds, assoc_id=assoc_id, original_patient_id=original_patient_id, pixel_data=pixel_data)
+        item = WorkItem(
+            ds=ds,
+            assoc_id=assoc_id,
+            original_patient_id=original_patient_id,
+            pixel_data=pixel_data,
+            generated_patient_id=generated_patient_id,
+        )
         self._queue.put(item)
         logger.debug("Enqueued work item for assoc %s, queue size ~%s", assoc_id, self._queue.qsize())
 
     def _submit_item(self, item: WorkItem, in_flight: deque):
         patient_id = item.original_patient_id
-        if patient_id is None or not self._anonymizer.is_patient_known(patient_id):
+        if patient_id is None or item.generated_patient_id is None:
             sop_uid = getattr(item.ds, "SOPInstanceUID", "UNKNOWN")
-            logger.error("PatientID '%s' not in lookup CSV, rejecting SOP %s", patient_id, sop_uid)
+            logger.error("No generated patient ID for '%s', rejecting SOP %s", patient_id, sop_uid)
             self._tracker.record_error(item.assoc_id, patient_id)
             return
+        patient_map_entry = {patient_id: item.generated_patient_id}
         sop_uid = getattr(item.ds, "SOPInstanceUID", "UNKNOWN")
-        future = self._pool.apply_async(_anonymize_in_worker, (item.ds,))
+        future = self._pool.apply_async(_anonymize_in_worker, (item.ds, patient_map_entry))
         item.ds = None
         in_flight.append(
             _InFlightItem(

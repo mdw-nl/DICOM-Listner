@@ -11,13 +11,14 @@ RETRY_DELAY_IN_SECONDS = 10
 
 BASE_DIR = str(Path(__file__).parents[1].resolve() / "data")
 
-XNAT_SCP_HOST = os.getenv("XNAT_SCP_HOST", "xnat-web")
-XNAT_SCP_PORT = int(os.getenv("XNAT_SCP_PORT", "8104"))
-XNAT_SCP_AE_TITLE = os.getenv("XNAT_SCP_AE_TITLE", "PREACT")
+PACS_SCP_HOST = os.getenv("PACS_SCP_HOST", "xnat-web")
+PACS_SCP_PORT = int(os.getenv("PACS_SCP_PORT", "8104"))
+PACS_SCP_AE_TITLE = os.getenv("PACS_SCP_AE_TITLE", "PREACT")
+PACS_SCU_AE_TITLE = os.getenv("PACS_SCU_AE_TITLE", "DICOM_SORTER_SCU")
 
 USE_RADIOMICS = os.getenv("USE_RADIOMICS", "").strip().lower() in ("1", "true", "yes", "y", "on")
 USE_RABBITMQ = os.getenv("USE_RABBITMQ", "true").strip().lower() in ("1", "true", "yes", "y", "on")
-USE_XNAT = os.getenv("USE_XNAT", "true").strip().lower() in ("1", "true", "yes", "y", "on")
+USE_PACS = os.getenv("USE_PACS", "true").strip().lower() in ("1", "true", "yes", "y", "on")
 
 QUEUE_NAME = _mq["queue_name"]
 

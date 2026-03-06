@@ -104,10 +104,19 @@ CREATE TABLE IF NOT EXISTS dvh_package (
 );
 """
 
+CREATE_PATIENT_ID_MAP = """
+CREATE TABLE IF NOT EXISTS patient_id_map (
+    id SERIAL PRIMARY KEY,
+    original_patient_id TEXT UNIQUE NOT NULL,
+    generated_patient_id TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);"""
+
 TABLES = [
     ("dicom_insert", CREATE_DATABASE_QUERY),
     ("associations", CREATE_DATABASE_QUERY_2),
     ("calculation_status", CREATE_DATABASE_QUERY_3),
+    ("patient_id_map", CREATE_PATIENT_ID_MAP),
     ("dvh_result", CREATE_DVH_RESULT),
     ("dvh_package", CREATE_DVH_PACKAGE),
 ]

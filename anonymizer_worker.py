@@ -137,14 +137,13 @@ def anonymize_study(db, anonymizer: Anonymizer, study_uid: str) -> int:
             logger.warning("Skipping missing file path: %s", dicom_path)
             continue
 
-        anonymized_ds = None
+        success = False
         try:
-            anonymized_ds = anonymizer.run(dicom_path)
-            if anonymized_ds is None:
+            success = anonymizer.run(dicom_path)
+            if not success:
                 raise RuntimeError(f"Anonymization failed for {dicom_path}")
             processed += 1
         finally:
-            del anonymized_ds
             if gc_interval > 0 and processed > 0 and processed % gc_interval == 0:
                 gc.collect()
 

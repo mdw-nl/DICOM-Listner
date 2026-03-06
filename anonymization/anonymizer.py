@@ -179,11 +179,12 @@ class Anonymizer:
         dicom_obj.private_block(0x1009, 'Deid', create=True).add_new(0x01, "SH", self.SiteID)
 
         dicom_obj.save_as(dicom_path, enforce_file_format=True)
-        return dicom_obj
+        del dicom_obj
+        return True
 
     def run(self, dicom_path):
         try:
-            modality_ds = pydicom.dcmread(dicom_path, defer_size="1 MB")
+            modality_ds = pydicom.dcmread(dicom_path, specific_tags=["Modality"], defer_size="1 MB")
             modality = getattr(modality_ds, "Modality", None)
             del modality_ds
 
@@ -193,16 +194,15 @@ class Anonymizer:
                 rtstruct.save_as(dicom_path, enforce_file_format=True)
                 del rtstruct
 
-            dicomdata = self.anonymize_file(dicom_path)
+            success = self.anonymize_file(dicom_path)
             logger.info("Anonymization process completed.")
-            logger.debug(f"Anonymized DICOM data: {dicomdata}")
-            if dicomdata is None:
-                logging.error("Anonymization failed, returning None")
-                return None
+            if not success:
+                logging.error("Anonymization failed, returning False")
+                return False
 
             logging.info("File anonymised successfully")
-            return dicomdata
+            return True
 
         except Exception as e:
             logger.error(f"Error processing message in run(): {e}")
-            return None
+            return False

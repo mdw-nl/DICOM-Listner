@@ -8,10 +8,9 @@ import pydicom
 import re
 import yaml
 from datetime import datetime
-from deid.dicom import get_files, replace_identifiers, get_identifiers
+from deid.dicom import replace_identifiers, get_identifiers
 from deid.config import DeidRecipe
 from pydicom.datadict import add_private_dict_entries
-import tempfile
 import contextlib
 
 # Configure logging
@@ -143,32 +142,22 @@ class Anonymizer:
 
         return rtstruct
 
-    def anonymize(self, dicom_obj):
+    def anonymize_file(self, dicom_path):
 
         # Suppress logger output during deid processing
         with suppress_output():
-            # Create a temporary folder for the DICOM file because deid does not work for in memory processing
-            with tempfile.TemporaryDirectory() as tmpdir:
-                temp_path = os.path.join(tmpdir, "temp.dcm")
+            items = get_identifiers([dicom_path], expand_sequences=False)
 
-                # Save the in-memory dataset to a temporary file
-                dicom_obj.save_as(temp_path, enforce_file_format=True)
+            for key in items:
+                items[key].update({
+                    "CSV_lookup_func": self.csv_lookup_func,
+                    "hash_func": self.hash_func,
+                    "DeIdentificationMethod": self.current_date,
+                    "PatientName": self.PatientName
+                })
 
-                items = get_identifiers([temp_path], expand_sequences=False)
-
-                for key in items:
-                    items[key].update({
-                        "CSV_lookup_func": self.csv_lookup_func,
-                        "hash_func": self.hash_func,
-                        "DeIdentificationMethod": self.current_date,
-                        "PatientName": self.PatientName
-                    })
-
-                # Apply anonymization in-place on the temp file
-                # recipe = DeidRecipe(deid=recipe_path)
-                # updated = replace_identifiers(dicom_files=[temp_path], deid=recipe, ids=items)
-                updated = replace_identifiers(dicom_files=[temp_path], deid=self._recipe, ids=items)
-                dicom_obj = updated[0]
+            updated = replace_identifiers(dicom_files=[dicom_path], deid=self._recipe, ids=items)
+            dicom_obj = updated[0]
 
 
         # Add private tags definitions
@@ -189,23 +178,31 @@ class Anonymizer:
         dicom_obj.private_block(0x1007, 'Deid', create=True).add_new(0x01, "SH", self.SiteName)
         dicom_obj.private_block(0x1009, 'Deid', create=True).add_new(0x01, "SH", self.SiteID)
 
-        return dicom_obj
+        dicom_obj.save_as(dicom_path, enforce_file_format=True)
+        del dicom_obj
+        return True
 
-    def run(self, dicomdata):
+    def run(self, dicom_path):
         try:
-            if dicomdata.Modality == "RTSTRUCT":
-                self.ROI_normalization(dicomdata)
+            modality_ds = pydicom.dcmread(dicom_path, specific_tags=["Modality"], defer_size="1 MB")
+            modality = getattr(modality_ds, "Modality", None)
+            del modality_ds
 
-            dicomdata = self.anonymize(dicomdata)
+            if modality == "RTSTRUCT":
+                rtstruct = pydicom.dcmread(dicom_path)
+                self.ROI_normalization(rtstruct)
+                rtstruct.save_as(dicom_path, enforce_file_format=True)
+                del rtstruct
+
+            success = self.anonymize_file(dicom_path)
             logger.info("Anonymization process completed.")
-            logger.debug(f"Anonymized DICOM data: {dicomdata}")
-            if dicomdata is None:
-                logging.error("Anonymization failed, returning None")
-                return None
+            if not success:
+                logging.error("Anonymization failed, returning False")
+                return False
 
             logging.info("File anonymised successfully")
-            return dicomdata
+            return True
 
         except Exception as e:
             logger.error(f"Error processing message in run(): {e}")
-            return None
+            return False

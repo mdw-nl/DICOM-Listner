@@ -66,10 +66,15 @@ services:
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
-      - ANONYMIZER_DICOM_BATCH_SIZE=100
+      - ANONYMIZER_DICOM_BATCH_SIZE=25
+      - ANONYMIZER_PUBLISH_TO_QUEUE_NAME=true
+      - ANONYMIZER_STUDY_PROCESS_ISOLATION=true
+      - ANONYMIZER_STUDY_PROCESS_TIMEOUT_SECONDS=0
     command: ["python", "anonymizer_worker.py"]
     networks:
       - protrait
+    mem_limit: 2g
+    mem_reservation: 1g
     volumes:
       - ./associationdata:/dicomsorter/data
       - ./recipes:/dicomsorter/recipes
@@ -87,6 +92,8 @@ services:
     command: ["python", "xnat_worker.py"]
     networks:
       - protrait
+    mem_limit: 1g
+    mem_reservation: 512m
     volumes:
       - ./associationdata:/dicomsorter/data
       - ./recipes:/dicomsorter/recipes

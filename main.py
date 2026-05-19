@@ -53,6 +53,12 @@ def set_up_db(config_dict_db):
         logger.info("Table calculation_status does not exist. Creating....")
         db.execute_query(query=query.CREATE_DATABASE_QUERY_3)
         logger.info("Table created....")
+    if db.check_table_exists("dvh_results"):
+        logger.info("The 'dvh_results' table exists.")
+    else:
+        logger.info("Table dvh_results does not exist. Creating....")
+        db.execute_query(query=query.CREATE_DATABASE_QUERY_DVH)
+        logger.info("Table created....")
     return db
 
 

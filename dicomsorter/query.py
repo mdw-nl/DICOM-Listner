@@ -29,11 +29,31 @@ CREATE TABLE associations (
 
 CREATE_DATABASE_QUERY_3 = """
 CREATE TABLE calculation_status (
-    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,     
-    study_uid TEXT,       
-    status BOOLEAN NOT NULL,                          
-    timestamp TIMESTAMP NOT NULL          
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    study_uid TEXT,
+    status BOOLEAN NOT NULL,
+    timestamp TIMESTAMP NOT NULL
 );"""
+
+CREATE_DATABASE_QUERY_DVH = """
+CREATE TABLE IF NOT EXISTS dvh_results (
+    id              SERIAL PRIMARY KEY,
+    patient_id      TEXT          NOT NULL,
+    study_uid       TEXT,
+    structure_name  TEXT          NOT NULL,
+    min_dose_gy     DOUBLE PRECISION,
+    mean_dose_gy    DOUBLE PRECISION,
+    max_dose_gy     DOUBLE PRECISION,
+    volume_cc       DOUBLE PRECISION,
+    color           TEXT,
+    metrics         JSONB,
+    dvh_points      JSONB,
+    payload         JSONB         NOT NULL,
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_dvh_results_patient ON dvh_results (patient_id);
+CREATE INDEX IF NOT EXISTS idx_dvh_results_study   ON dvh_results (study_uid);
+"""
 
 
 

@@ -31,6 +31,7 @@ CREATE_DATABASE_QUERY_3 = """
 CREATE TABLE calculation_status (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     study_uid TEXT,
+    patient_id TEXT,
     status BOOLEAN NOT NULL,
     timestamp TIMESTAMP NOT NULL
 );"""
@@ -64,6 +65,7 @@ INSERT_QUERY_DICOM_META = """
         sop_instance_uid, sop_class_uid, instance_number, 
         file_path,referenced_rt_plan_uid, referenced_sop_class_uid, modality_type,assoc_id
     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (sop_instance_uid) DO NOTHING
 """
 
 INSERT_QUERY_DICOM_ASS = """

@@ -28,13 +28,17 @@ CREATE TABLE associations (
 );"""
 
 CREATE_DATABASE_QUERY_3 = """
-CREATE TABLE calculation_status (
-    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    study_uid TEXT,
-    patient_id TEXT,
-    status BOOLEAN NOT NULL,
-    timestamp TIMESTAMP NOT NULL
-);"""
+CREATE TABLE IF NOT EXISTS calculation_status (
+    id          SERIAL      PRIMARY KEY,
+    study_uid   TEXT        NOT NULL,
+    status      BOOLEAN     NOT NULL,
+    timestamp   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    patient_id  TEXT,
+    error       JSONB
+);
+CREATE INDEX IF NOT EXISTS idx_calculation_status_study   ON calculation_status (study_uid);
+CREATE INDEX IF NOT EXISTS idx_calculation_status_patient ON calculation_status (patient_id);
+"""
 
 CREATE_DATABASE_QUERY_DVH = """
 CREATE TABLE IF NOT EXISTS dvh_results (

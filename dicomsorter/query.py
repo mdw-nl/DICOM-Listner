@@ -42,23 +42,27 @@ CREATE INDEX IF NOT EXISTS idx_calculation_status_patient ON calculation_status 
 
 CREATE_DATABASE_QUERY_DVH = """
 CREATE TABLE IF NOT EXISTS dvh_results (
-    id              SERIAL PRIMARY KEY,
-    patient_id      TEXT          NOT NULL,
-    study_uid       TEXT,
-    structure_name  TEXT          NOT NULL,
-    min_dose_gy     DOUBLE PRECISION,
-    mean_dose_gy    DOUBLE PRECISION,
-    max_dose_gy     DOUBLE PRECISION,
-    volume_cc       DOUBLE PRECISION,
-    color           TEXT,
-    metrics         JSONB,
-    dvh_points      JSONB,
-    payload         JSONB         NOT NULL,
-    created_at      TIMESTAMPTZ   NOT NULL DEFAULT now()
+    id                   SERIAL PRIMARY KEY,
+    patient_id           TEXT          NOT NULL,
+    study_uid            TEXT,
+    structure_name       TEXT          NOT NULL,
+    min_dose_gy          DOUBLE PRECISION,
+    mean_dose_gy         DOUBLE PRECISION,
+    max_dose_gy          DOUBLE PRECISION,
+    volume_cc            DOUBLE PRECISION,
+    color                TEXT,
+    metrics              JSONB,
+    dvh_points           JSONB,
+    payload              JSONB         NOT NULL,
+    rt_plan_path         TEXT,
+    rt_dose_paths        TEXT,
+    effective_dose_type  TEXT,
+    created_at           TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_dvh_results_patient ON dvh_results (patient_id);
 CREATE INDEX IF NOT EXISTS idx_dvh_results_study   ON dvh_results (study_uid);
 """
+
 
 
 

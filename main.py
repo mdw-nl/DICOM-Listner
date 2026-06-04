@@ -1,6 +1,8 @@
 import logging
 from pydicom.uid import ImplicitVRLittleEndian, ExplicitVRLittleEndian, ExplicitVRBigEndian
 from pynetdicom import evt, StoragePresentationContexts, debug_logger
+from pynetdicom.sop_class import register_uid
+from pynetdicom.service_class import StorageServiceClass
 from dicomsorter import PostgresInterface, DicomStoreHandler, query
 import traceback
 import yaml
@@ -15,6 +17,11 @@ logger = logging.getLogger()
 
 debug_logger()
 logging.getLogger("pynetdicom").setLevel(logging.DEBUG)
+
+# Varian private RT object: register it against the Storage service class so the
+# SCP can route incoming C-STORE requests for it (add_supported_context alone is
+# not enough for a private/unknown SOP Class UID).
+register_uid("1.2.246.352.70.1.70", "VarianRTPlanStorage", StorageServiceClass)
 
 
 def read_config():

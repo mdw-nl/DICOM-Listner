@@ -1,4 +1,5 @@
 import logging
+from pydicom.uid import ImplicitVRLittleEndian, ExplicitVRLittleEndian, ExplicitVRBigEndian
 from pynetdicom import evt, StoragePresentationContexts, debug_logger
 from dicomsorter import PostgresInterface, DicomStoreHandler, query
 import traceback
@@ -85,6 +86,11 @@ if __name__ == "__main__":
     try:
         dh.create_queue()
         dh.ae.supported_contexts = StoragePresentationContexts
+        # Accept the Varian private RT object that the standard storage list omits.
+        dh.ae.add_supported_context(
+            "1.2.246.352.70.1.70",
+            [ImplicitVRLittleEndian, ExplicitVRLittleEndian, ExplicitVRBigEndian],
+        )
 
         # Define event handlers
         handlers = [(evt.EVT_C_STORE, dh.handle_store),

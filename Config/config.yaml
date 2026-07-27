@@ -10,3 +10,16 @@ rabbitMQ:
   username: "guest"
   password: "guest"
   queue_name: "DICOM_Processor"
+# Private / non-standard Storage SOP Class UIDs to accept. Add an entry here
+# (no code change or rebuild needed if Config/ is mounted as a volume) and
+# restart the listener.
+private_sop_classes:
+  - uid: "1.2.246.352.70.1.70"
+    keyword: "VarianRTPlanStorage"
+
+# Private / non-standard Storage SOP Class UIDs to accept. Add an entry here
+# (no code change or rebuild needed if Config/ is mounted as a volume) and
+# restart the listener.
+private_sop_classes:
+  - uid: "1.2.246.352.70.1.70"
+    keyword: "VarianRTPlanStorage"

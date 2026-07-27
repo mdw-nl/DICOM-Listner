@@ -18,10 +18,7 @@ logger = logging.getLogger()
 debug_logger()
 logging.getLogger("pynetdicom").setLevel(logging.DEBUG)
 
-# Varian private RT object: register it against the Storage service class so the
-# SCP can route incoming C-STORE requests for it (add_supported_context alone is
-# not enough for a private/unknown SOP Class UID).
-register_uid("1.2.246.352.70.1.70", "VarianRTPlanStorage", StorageServiceClass)
+
 
 
 def read_config():
@@ -75,6 +72,32 @@ if __name__ == "__main__":
     # Set up the DICOM Application Entity (AE) as an SCP
     config_db = Config("postgres").config
     rabbitMQ_config = Config("rabbitMQ").config
+    private_sop_config = Config("private_sop_classes").config
+
+    # Keep only well-formed entries; warn about (and skip) anything invalid.
+    valid_sop_classes = []
+    if private_sop_config and not isinstance(private_sop_config, list):
+        logger.warning(
+            f"'private_sop_classes' must be a list of entries, got {type(private_sop_config).__name__}; ignoring."
+        )
+    elif private_sop_config:
+        for sop_class in private_sop_config:
+            if not isinstance(sop_class, dict):
+                logger.warning(f"Skipping non-mapping private_sop_classes entry: {sop_class!r}")
+                continue
+            uid = sop_class.get("uid")
+            keyword = sop_class.get("keyword")
+            if not uid or not keyword:
+                logger.warning(
+                    f"Skipping malformed private_sop_classes entry (needs 'uid' and 'keyword'): {sop_class}"
+                )
+                continue
+            try:
+                register_uid(uid, keyword, StorageServiceClass)
+            except Exception as e:
+                logger.warning(f"Skipping private_sop_classes entry {sop_class}: register_uid failed ({e})")
+                continue
+            valid_sop_classes.append(sop_class)
 
     database = set_up_db(config_db)
     dh = DicomStoreHandler(database)
@@ -93,11 +116,12 @@ if __name__ == "__main__":
     try:
         dh.create_queue()
         dh.ae.supported_contexts = StoragePresentationContexts
-        # Accept the Varian private RT object that the standard storage list omits.
-        dh.ae.add_supported_context(
-            "1.2.246.352.70.1.70",
-            [ImplicitVRLittleEndian, ExplicitVRLittleEndian, ExplicitVRBigEndian],
-        )
+        # Accept the private / non-standard Storage SOP classes listed in config.
+        for sop_class in valid_sop_classes:
+            dh.ae.add_supported_context(
+                sop_class["uid"],
+                [ImplicitVRLittleEndian, ExplicitVRLittleEndian, ExplicitVRBigEndian],
+            )
 
         # Define event handlers
         handlers = [(evt.EVT_C_STORE, dh.handle_store),
